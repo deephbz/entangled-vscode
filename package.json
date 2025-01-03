@@ -55,18 +55,18 @@
         "id": "entangled.definition.background",
         "description": "Background color for code block definitions",
         "defaults": {
-          "dark": "#1d3b55",
           "light": "#e6f3ff",
-          "highContrast": "#0d2339"
+          "dark": "#1d3b55",
+          "highContrast": "#1d3b55"
         }
       },
       {
         "id": "entangled.definition.foreground",
-        "description": "Text color for code block definitions",
+        "description": "Foreground color for code block definitions",
         "defaults": {
-          "dark": "#61afef",
           "light": "#2b7ae2",
-          "highContrast": "#7fbfff"
+          "dark": "#61afef",
+          "highContrast": "#61afef"
         }
       },
       {
