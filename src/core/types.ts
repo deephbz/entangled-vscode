@@ -1,7 +1,24 @@
 import * as vscode from 'vscode';
 
+// Basic block property types
+export interface CodeBlockProperty {
+    type: 'identifier' | 'class' | 'keyValue';
+    key: string;
+    value?: string;
+}
+
+export interface CodeBlockAttributes {
+    properties: CodeBlockProperty[];
+    language?: string;
+    identifier?: string;
+    fileName?: string;
+}
+
+export type CodeBlockType = 'referable' | 'file' | 'ignored';
+
+// Core code block type
 export interface CodeBlock {
-    type: 'referable' | 'file' | 'ignored';
+    type: CodeBlockType;
     identifier: string;
     language: string;
     content: string;
@@ -9,8 +26,13 @@ export interface CodeBlock {
     location: vscode.Location;
     fileName?: string;
     indentation?: string;
+    attributes: CodeBlockAttributes;
+    expandedContent?: string;
+    dependencies?: Set<string>;
+    dependents?: Set<string>;
 }
 
+// Document state types
 export interface ParsedDocument {
     uri: string;
     blocks: CodeBlock[];
@@ -20,23 +42,32 @@ export interface ParsedDocument {
 }
 
 export interface EntangledState {
-    // Document state
     documents: Map<string, ParsedDocument>;
-    
-    // Cross-document references
     globalReferences: Map<string, CodeBlock[]>;
-    
-    // File blocks across all documents
     fileBlocks: Map<string, CodeBlock>;
 }
 
+// Pandoc AST types
+export interface PandocASTNode {
+    t: string;  // type
+    c: any;     // content
+}
+
+export interface PandocAST {
+    blocks: PandocASTNode[];
+    meta: Record<string, any>;
+    pandoc_version: string[];
+}
+
+// Error types
+export interface CircularReference {
+    path: string[];
+    start: string;
+}
+
+// Service interfaces
 export interface DocumentProcessor {
-    // Initial parsing of the document
     parse(document: vscode.TextDocument): Promise<ParsedDocument>;
-    
-    // Get cached parse results or parse if needed
     getParsedDocument(uri: string): Promise<ParsedDocument | undefined>;
-    
-    // Clear cache for a document
     invalidate(uri: string): void;
 }

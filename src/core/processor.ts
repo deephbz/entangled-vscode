@@ -74,6 +74,10 @@ export class EntangledProcessor implements DocumentProcessor {
         this.documentCache.delete(uri);
     }
 
+    clearCache(): void {
+        this.documentCache.clear();
+    }
+
     private async findBlockLocation(
         document: vscode.TextDocument,
         block: CodeBlock

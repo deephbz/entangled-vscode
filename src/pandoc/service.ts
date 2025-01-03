@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { PandocAST, PandocCodeBlock, PandocASTNode, CodeBlockAttributes, CodeBlockProperty, CodeBlockType } from './types';
+import { PandocAST, PandocASTNode, CodeBlock, CodeBlockAttributes, CodeBlockProperty, CodeBlockType } from '../core/types';
 import { log } from '../extension';
 
 const execAsync = promisify(exec);
@@ -138,9 +138,9 @@ export class PandocService {
         return 'ignored';
     }
 
-    extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
+    extractCodeBlocks(ast: PandocAST): CodeBlock[] {
         log('Extracting code blocks from AST...');
-        const codeBlocks: PandocCodeBlock[] = [];
+        const codeBlocks: CodeBlock[] = [];
         
         const processNode = (node: PandocASTNode) => {
             if (node.t === 'CodeBlock') {
@@ -160,7 +160,7 @@ export class PandocService {
                     language: attributes.language || '',
                     content,
                     references,
-                    lineNumber: -1,
+                    location: new vscode.Location(vscode.Uri.file(''), new vscode.Range(0, 0, 0, 0)), // Will be updated later
                     fileName: attributes.fileName,
                     indentation,
                     attributes

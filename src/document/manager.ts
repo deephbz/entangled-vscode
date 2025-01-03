@@ -1,16 +1,20 @@
 import * as vscode from 'vscode';
-import { PandocCodeBlock } from '../pandoc/types';
-import { DocumentBlock, DocumentMap, FileMap, CircularReference, CodeBlockLocation } from './types';
+import { CodeBlock, CircularReference } from '../core/types';
 import { PandocService } from '../pandoc/service';
 import { log } from '../extension';
 
-// Get the output channel from extension
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+
+interface MutableCodeBlock extends CodeBlock {
+    dependencies: Set<string>;
+    dependents: Set<string>;
+    expandedContent?: string;
+}
 
 export class DocumentManager {
     private static instance: DocumentManager;
-    public documents: DocumentMap = {};
-    private fileMap: FileMap = {};
+    public documents: { [key: string]: MutableCodeBlock[] } = {};
+    private fileMap: { [key: string]: Set<string> } = {};
     private pandocService: PandocService;
 
     private constructor() {
@@ -53,19 +57,21 @@ export class DocumentManager {
                 const location = this.findBlockLocation(document, block);
                 if (location) {
                     log(`Found location for block [${block.identifier}]`);
-                    const documentBlock: DocumentBlock = {
+                    const documentBlock: MutableCodeBlock = {
                         ...block,
                         location,
                         dependencies: new Set(block.references),
                         dependents: new Set()
                     };
-                    
+
+                    // Add to documents map
                     if (!this.documents[block.identifier]) {
                         this.documents[block.identifier] = [];
                     }
                     this.documents[block.identifier].push(documentBlock);
+
+                    // Add to file map
                     this.fileMap[uri].add(block.identifier);
-                    log(`Added block [${block.identifier}] to documents`);
                 } else {
                     log(`Could not find location for block [${block.identifier}]`);
                 }
@@ -73,7 +79,8 @@ export class DocumentManager {
 
             // Update dependencies
             this.updateDependencies();
-            log(`Document parsing completed. Total blocks: ${Object.keys(this.documents).length}`);
+            
+            log('Document parsing completed');
             log(`Blocks in current file: ${Array.from(this.fileMap[uri] || []).join(', ')}`);
         } catch (error) {
             log(`Error parsing document: ${error}`);
@@ -84,55 +91,8 @@ export class DocumentManager {
         }
     }
 
-    private findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
-        log(`Finding location for block: [${block.identifier}]`);
-        const text = document.getText();
-        const lines = text.split('\n');
-        let inCodeBlock = false;
-        let startLine = -1;
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            // log(`Checking line ${i}: ${line}`);
-            
-            if (line.startsWith('```')) {
-                if (!inCodeBlock) {
-                    // Check for both formats: {.lang #id} and {#id .lang}
-                    const match = line.match(/^```\s*\{([^}]*)\}/);
-                    if (match) {
-                        const attributes = match[1];
-                        log(`Found code block start with attributes: ${attributes}`);
-                        // Look for #identifier in attributes
-                        const idMatch = attributes.match(/#([^\s}]+)/);
-                        if (idMatch && idMatch[1] === block.identifier) {
-                            log(`Found matching block: [${block.identifier}]`);
-                            startLine = i;
-                            inCodeBlock = true;
-                        }
-                    }
-                } else {
-                    if (startLine !== -1) {
-                        // We found the end of our block
-                        log(`Found end of block [${block.identifier}] at line ${i}`);
-                        return {
-                            uri: document.uri,
-                            range: new vscode.Range(
-                                new vscode.Position(startLine, 0),
-                                new vscode.Position(i, lines[i].length)
-                            ),
-                            identifier: block.identifier
-                        };
-                    }
-                    inCodeBlock = false;
-                }
-            }
-        }
-        // log(`No location found for block: [${block.identifier}]`);
-        return null;
-    }
-
     private updateDependencies(): void {
-        // Clear existing dependents
+        // Clear all dependents
         for (const blocks of Object.values(this.documents)) {
             for (const block of blocks) {
                 block.dependents.clear();
@@ -154,14 +114,9 @@ export class DocumentManager {
         }
     }
 
-    findDefinition(identifier: string): vscode.Location[] {
+    findDefinition(identifier: string): vscode.Location | undefined {
         const blocks = this.documents[identifier];
-        if (!blocks) return [];
-        
-        return blocks.map(block => new vscode.Location(
-            block.location.uri,
-            block.location.range
-        ));
+        return blocks?.[0]?.location;
     }
 
     findReferences(identifier: string): vscode.Location[] {
@@ -170,27 +125,14 @@ export class DocumentManager {
         // Add definitions
         const blocks = this.documents[identifier];
         if (blocks) {
-            locations.push(...blocks.map(block => 
-                new vscode.Location(block.location.uri, block.location.range)
-            ));
+            locations.push(...blocks.map(block => block.location));
         }
 
-        // Add references from other blocks
-        for (const [_, blockList] of Object.entries(this.documents)) {
-            for (const block of blockList) {
+        // Add references
+        for (const allBlocks of Object.values(this.documents)) {
+            for (const block of allBlocks) {
                 if (block.dependencies.has(identifier)) {
-                    // Find the exact position of the reference in the block
-                    const reference = `<<${identifier}>>`;
-                    const content = block.content;
-                    const index = content.indexOf(reference);
-                    if (index !== -1) {
-                        const position = block.location.range.start.translate(0, index);
-                        const range = new vscode.Range(
-                            position,
-                            position.translate(0, reference.length)
-                        );
-                        locations.push(new vscode.Location(block.location.uri, range));
-                    }
+                    locations.push(block.location);
                 }
             }
         }
@@ -198,29 +140,32 @@ export class DocumentManager {
         return locations;
     }
 
-    findCircularReferences(): CircularReference[] {
-        const circular: CircularReference[] = [];
+    detectCircularReferences(): CircularReference[] {
+        const circularRefs: CircularReference[] = [];
         const visited = new Set<string>();
         const path: string[] = [];
 
-        const dfs = (identifier: string) => {
+        const visit = (identifier: string) => {
             if (path.includes(identifier)) {
-                const start = path.indexOf(identifier);
-                circular.push({
-                    path: path.slice(start),
-                    start: identifier
-                });
+                const start = identifier;
+                const cycle = path.slice(path.indexOf(identifier));
+                circularRefs.push({ path: cycle, start });
                 return;
             }
 
-            if (visited.has(identifier)) return;
+            if (visited.has(identifier)) {
+                return;
+            }
+
             visited.add(identifier);
             path.push(identifier);
 
-            const block = this.documents[identifier]?.[0];
-            if (block) {
-                for (const dep of block.dependencies) {
-                    dfs(dep);
+            const blocks = this.documents[identifier];
+            if (blocks) {
+                for (const block of blocks) {
+                    for (const dep of block.dependencies) {
+                        visit(dep);
+                    }
                 }
             }
 
@@ -228,43 +173,64 @@ export class DocumentManager {
         };
 
         for (const identifier of Object.keys(this.documents)) {
-            dfs(identifier);
+            visit(identifier);
         }
 
-        return circular;
+        return circularRefs;
     }
 
     getExpandedContent(identifier: string): string {
         const blocks = this.documents[identifier];
-        if (!blocks || blocks.length === 0) return '';
-
-        const block = blocks[0];
-        if (block.expandedContent !== undefined) {
-            return block.expandedContent;
+        if (!blocks || blocks.length === 0) {
+            return '';
         }
 
-        const visited = new Set<string>();
-        const expand = (id: string): string => {
-            if (visited.has(id)) return `<<${id}>> (circular reference)`;
-            visited.add(id);
+        // Use the first block's content
+        const block = blocks[0];
+        return block.content;
+    }
 
-            const currentBlocks = this.documents[id];
-            if (!currentBlocks || currentBlocks.length === 0) {
-                return `<<${id}>> (undefined)`;
+    private findBlockLocation(document: vscode.TextDocument, block: CodeBlock): vscode.Location | undefined {
+        const text = document.getText();
+        const lines = text.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            // Match code block start
+            if (line.trim().startsWith('```')) {
+                // Check if this is our block by matching attributes
+                const attrs = line.substring(3).trim();
+                if (this.matchesBlockAttributes(attrs, block)) {
+                    // Find block end
+                    let endLine = i + 1;
+                    while (endLine < lines.length && !lines[endLine].trim().startsWith('```')) {
+                        endLine++;
+                    }
+                    
+                    return new vscode.Location(
+                        document.uri,
+                        new vscode.Range(
+                            new vscode.Position(i, 0),
+                            new vscode.Position(endLine, lines[endLine]?.length || 0)
+                        )
+                    );
+                }
             }
+        }
+        
+        return undefined;
+    }
 
-            let content = currentBlocks[0].content;
-            for (const ref of currentBlocks[0].dependencies) {
-                const refContent = expand(ref);
-                content = content.replace(new RegExp(`<<${ref}>>`, 'g'), refContent);
-            }
-
-            visited.delete(id);
-            return content;
-        };
-
-        block.expandedContent = expand(identifier);
-        return block.expandedContent;
+    private matchesBlockAttributes(attrs: string, block: CodeBlock): boolean {
+        // Match language and identifier/file attributes
+        if (block.type === 'file') {
+            return attrs.includes(`.${block.language}`) && 
+                   attrs.includes(`file=${block.fileName}`);
+        } else if (block.type === 'referable') {
+            return attrs.includes(`.${block.language}`) && 
+                   attrs.includes(`#${block.identifier}`);
+        }
+        return false;
     }
 
     clearCache(): void {
