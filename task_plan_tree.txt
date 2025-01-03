@@ -1,13 +1,14 @@
 - Document Structure Manager
-  - Design document structure interface
-  - Implement block storage and retrieval
-  - Add reference resolution logic
-  - Handle circular dependencies
+  - Design document structure interface (DONE)
+  - Implement block storage and retrieval (DONE)
+  - Add reference resolution logic (DONE)
+  - Handle circular dependencies (DONE)
 
 - Navigation Provider
-  - Implement location tracking for code blocks
-  - Add definition provider
-  - Add reference provider
+  - Create DocumentSymbolProvider for code block outline
+  - Implement DefinitionProvider
+  - Implement ReferenceProvider
+  - Add hover provider for block information
   - Handle multi-file navigation
 
 - VSCode Integration
@@ -15,6 +16,7 @@
   - Implement command handlers
   - Add document change tracking
   - Create status bar information
+  - Add error diagnostics for undefined/circular references
 
 - Testing and Documentation
   - Add unit tests for core components
