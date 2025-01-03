@@ -5,6 +5,7 @@ import { CircularReference } from '../document/types';
 export interface IPandocService {
     convertToAST(document: vscode.TextDocument): Promise<unknown>;
     extractCodeBlocks(ast: unknown): PandocCodeBlock[];
+    clearCache(): void;
 }
 
 export interface IDocumentManager {

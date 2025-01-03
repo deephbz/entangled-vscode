@@ -16,9 +16,12 @@ export class PandocError extends EntangledError {
 export class PandocService implements IPandocService {
     private static instance: PandocService;
     private logger: Logger;
+    private astCache: Map<string, { ast: unknown, version: number }>;
+    private readonly MAX_CACHE_SIZE = 50; // Maximum number of cached documents
 
     private constructor() {
         this.logger = Logger.getInstance();
+        this.astCache = new Map();
     }
 
     public static getInstance(): PandocService {
@@ -28,10 +31,19 @@ export class PandocService implements IPandocService {
         return PandocService.instance;
     }
 
-    async convertToAST(document: vscode.TextDocument): Promise<unknown> {
-        this.logger.debug('Converting document to AST', { uri: document.uri.toString() });
+    public async convertToAST(document: vscode.TextDocument): Promise<unknown> {
+        const uri = document.uri.toString();
+        const version = document.version;
         
-        return new Promise((resolve, reject) => {
+        // Check cache first
+        const cached = this.astCache.get(uri);
+        if (cached && cached.version === version) {
+            this.logger.debug('Using cached AST', { uri, version });
+            return cached.ast;
+        }
+
+        // Convert document to AST
+        return new Promise<unknown>((resolve, reject) => {
             const pandoc = spawn('pandoc', ['-f', 'markdown', '-t', 'json']);
             let stdout = '';
             let stderr = '';
@@ -53,6 +65,18 @@ export class PandocService implements IPandocService {
 
                 try {
                     const ast = JSON.parse(stdout);
+                    
+                    // Update cache
+                    if (this.astCache.size >= this.MAX_CACHE_SIZE) {
+                        // Remove oldest entry if cache is full
+                        const firstKey = this.astCache.keys().next().value;
+                        if (firstKey !== undefined) {
+                            this.astCache.delete(firstKey);
+                        }
+                    }
+                    this.astCache.set(uri, { ast, version });
+                    
+                    this.logger.debug('Updated AST cache', { uri, version });
                     this.logger.debug('Successfully converted document to AST');
                     resolve(ast);
                 } catch (error) {
@@ -64,6 +88,11 @@ export class PandocService implements IPandocService {
             pandoc.stdin.write(document.getText());
             pandoc.stdin.end();
         });
+    }
+
+    public clearCache(): void {
+        this.astCache.clear();
+        this.logger.info('Cleared AST cache');
     }
 
     extractCodeBlocks(ast: unknown): PandocCodeBlock[] {
