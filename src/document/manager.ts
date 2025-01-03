@@ -2,10 +2,14 @@ import * as vscode from 'vscode';
 import { PandocCodeBlock } from '../pandoc/types';
 import { DocumentBlock, DocumentMap, FileMap, CircularReference, CodeBlockLocation } from './types';
 import { PandocService } from '../pandoc/service';
+import { log } from '../extension';
+
+// Get the output channel from extension
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
 
 export class DocumentManager {
     private static instance: DocumentManager;
-    private documents: DocumentMap = {};
+    public documents: DocumentMap = {};
     private fileMap: FileMap = {};
     private pandocService: PandocService;
 
@@ -21,47 +25,67 @@ export class DocumentManager {
     }
 
     async parseDocument(document: vscode.TextDocument): Promise<void> {
-        const ast = await this.pandocService.convertToAST(document);
-        const blocks = this.pandocService.extractCodeBlocks(ast);
-        
-        // Clear existing blocks for this document
-        const uri = document.uri.toString();
-        if (this.fileMap[uri]) {
-            for (const identifier of this.fileMap[uri]) {
-                this.documents[identifier] = this.documents[identifier]?.filter(
-                    block => block.location.uri.toString() !== uri
-                ) || [];
-                if (this.documents[identifier].length === 0) {
-                    delete this.documents[identifier];
+        log(`Parsing document: ${document.uri}`);
+        try {
+            log('Converting document to AST...');
+            const ast = await this.pandocService.convertToAST(document);
+            log('AST conversion successful, extracting code blocks...');
+            const blocks = this.pandocService.extractCodeBlocks(ast);
+            log(`Found ${blocks.length} code blocks in document`);
+            
+            // Clear existing blocks for this document
+            const uri = document.uri.toString();
+            if (this.fileMap[uri]) {
+                log(`Clearing existing blocks for ${uri}`);
+                for (const identifier of this.fileMap[uri]) {
+                    this.documents[identifier] = this.documents[identifier]?.filter(
+                        block => block.location.uri.toString() !== uri
+                    ) || [];
+                    if (this.documents[identifier].length === 0) {
+                        delete this.documents[identifier];
+                    }
                 }
             }
-        }
-        this.fileMap[uri] = new Set();
+            this.fileMap[uri] = new Set();
 
-        // Add new blocks
-        for (const block of blocks) {
-            const location = this.findBlockLocation(document, block);
-            if (location) {
-                const documentBlock: DocumentBlock = {
-                    ...block,
-                    location,
-                    dependencies: new Set(block.references),
-                    dependents: new Set()
-                };
-                
-                if (!this.documents[block.identifier]) {
-                    this.documents[block.identifier] = [];
+            // Add new blocks
+            for (const block of blocks) {
+                const location = this.findBlockLocation(document, block);
+                if (location) {
+                    log(`Found location for block [${block.identifier}]`);
+                    const documentBlock: DocumentBlock = {
+                        ...block,
+                        location,
+                        dependencies: new Set(block.references),
+                        dependents: new Set()
+                    };
+                    
+                    if (!this.documents[block.identifier]) {
+                        this.documents[block.identifier] = [];
+                    }
+                    this.documents[block.identifier].push(documentBlock);
+                    this.fileMap[uri].add(block.identifier);
+                    log(`Added block [${block.identifier}] to documents`);
+                } else {
+                    log(`Could not find location for block [${block.identifier}]`);
                 }
-                this.documents[block.identifier].push(documentBlock);
-                this.fileMap[uri].add(block.identifier);
             }
-        }
 
-        // Update dependencies
-        this.updateDependencies();
+            // Update dependencies
+            this.updateDependencies();
+            log(`Document parsing completed. Total blocks: ${Object.keys(this.documents).length}`);
+            log(`Blocks in current file: ${Array.from(this.fileMap[uri] || []).join(', ')}`);
+        } catch (error) {
+            log(`Error parsing document: ${error}`);
+            if (error instanceof Error) {
+                log(`Error stack: ${error.stack}`);
+            }
+            throw error;
+        }
     }
 
     private findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
+        log(`Finding location for block: [${block.identifier}]`);
         const text = document.getText();
         const lines = text.split('\n');
         let inCodeBlock = false;
@@ -69,16 +93,27 @@ export class DocumentManager {
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
+            // log(`Checking line ${i}: ${line}`);
+            
             if (line.startsWith('```')) {
                 if (!inCodeBlock) {
-                    // Check if this is our block by looking for the identifier
-                    if (line.includes(block.identifier)) {
-                        startLine = i;
-                        inCodeBlock = true;
+                    // Check for both formats: {.lang #id} and {#id .lang}
+                    const match = line.match(/^```\s*\{([^}]*)\}/);
+                    if (match) {
+                        const attributes = match[1];
+                        log(`Found code block start with attributes: ${attributes}`);
+                        // Look for #identifier in attributes
+                        const idMatch = attributes.match(/#([^\s}]+)/);
+                        if (idMatch && idMatch[1] === block.identifier) {
+                            log(`Found matching block: [${block.identifier}]`);
+                            startLine = i;
+                            inCodeBlock = true;
+                        }
                     }
                 } else {
                     if (startLine !== -1) {
                         // We found the end of our block
+                        log(`Found end of block [${block.identifier}] at line ${i}`);
                         return {
                             uri: document.uri,
                             range: new vscode.Range(
@@ -92,6 +127,7 @@ export class DocumentManager {
                 }
             }
         }
+        // log(`No location found for block: [${block.identifier}]`);
         return null;
     }
 

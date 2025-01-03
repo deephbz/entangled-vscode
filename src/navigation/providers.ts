@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { DocumentManager } from '../document/manager';
+import { log } from '../extension';
+
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
 
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     private documentManager: DocumentManager;
@@ -37,7 +40,8 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
     ): vscode.ProviderResult<vscode.Location[]> {
         // Check if we're in a code block identifier
         const lineText = document.lineAt(position.line).text;
-        const codeBlockMatch = lineText.match(/^```\{.*#([^}]+)\}/);
+        // Match both standard code blocks with {.lang #id} and file blocks with {.lang file=path}
+        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
         if (codeBlockMatch) {
             const identifier = codeBlockMatch[1];
             return this.documentManager.findReferences(identifier);
@@ -69,13 +73,13 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
     ): vscode.ProviderResult<vscode.Hover> {
         // Check for code block identifier
         const lineText = document.lineAt(position.line).text;
-        const codeBlockMatch = lineText.match(/^```\{.*#([^}]+)\}/);
+        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
         if (codeBlockMatch) {
             const identifier = codeBlockMatch[1];
             const content = this.documentManager.getExpandedContent(identifier);
             return new vscode.Hover([
                 new vscode.MarkdownString('**Code Block Definition**'),
-                new vscode.MarkdownString(content)
+                new vscode.MarkdownString('```' + content + '```')
             ]);
         }
 
@@ -87,7 +91,7 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
             const content = this.documentManager.getExpandedContent(identifier);
             return new vscode.Hover([
                 new vscode.MarkdownString('**Referenced Code Block**'),
-                new vscode.MarkdownString(content)
+                new vscode.MarkdownString('```' + content + '```')
             ]);
         }
 
@@ -96,48 +100,39 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
 }
 
 export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-    private documentManager: DocumentManager;
-
-    constructor() {
-        this.documentManager = DocumentManager.getInstance();
-    }
+    private documentManager = DocumentManager.getInstance();
 
     async provideDocumentSymbols(
         document: vscode.TextDocument,
         token: vscode.CancellationToken
     ): Promise<vscode.DocumentSymbol[]> {
+        log('Providing document symbols...');
         const symbols: vscode.DocumentSymbol[] = [];
-        const text = document.getText();
-        const lines = text.split('\n');
+        const uri = document.uri.toString();
         
-        let currentBlock: { range: vscode.Range; identifier: string } | null = null;
+        // Get all blocks in this document from the document manager
+        const documentBlocks = this.documentManager.documents;
+        log(`Found ${Object.keys(documentBlocks).length} total blocks`);
         
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const codeBlockMatch = line.match(/^```\{.*#([^}]+)\}/);
-            
-            if (codeBlockMatch) {
-                const startPos = new vscode.Position(i, 0);
-                currentBlock = {
-                    range: new vscode.Range(startPos, startPos),
-                    identifier: codeBlockMatch[1]
-                };
-            } else if (line.trim() === '```' && currentBlock) {
-                const endPos = new vscode.Position(i, line.length);
-                currentBlock.range = new vscode.Range(currentBlock.range.start, endPos);
-                
-                symbols.push(new vscode.DocumentSymbol(
-                    currentBlock.identifier,
-                    'Code Block',
-                    vscode.SymbolKind.Class,
-                    currentBlock.range,
-                    currentBlock.range
-                ));
-                
-                currentBlock = null;
+        // Filter blocks for this document
+        for (const [identifier, blocks] of Object.entries(documentBlocks)) {
+            log(`Processing blocks for identifier: ${identifier}`);
+            for (const block of blocks) {
+                if (block.location.uri.toString() === uri) {
+                    log(`Creating symbol for block: ${identifier}`);
+                    const detail = block.language ? `[${block.language}]` : '';
+                    symbols.push(new vscode.DocumentSymbol(
+                        identifier,
+                        detail,
+                        vscode.SymbolKind.Class,
+                        block.location.range,
+                        block.location.range
+                    ));
+                }
             }
         }
         
+        log(`Returning ${symbols.length} symbols`);
         return symbols;
     }
 }
