@@ -19,25 +19,38 @@ export class PandocService {
 
     async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
         try {
-            const { stdout } = await execAsync(
-                `echo ${JSON.stringify(document.getText())} | pandoc -f markdown -t json`
-            );
-            return JSON.parse(stdout);
+            console.log('Converting document to AST...');
+            const text = document.getText();
+            console.log('Document content:', text.substring(0, 100) + '...');
+            
+            const command = `echo ${JSON.stringify(text)} | pandoc -f markdown -t json`;
+            console.log('Executing pandoc command:', command);
+            
+            const { stdout } = await execAsync(command);
+            console.log('Pandoc output received, length:', stdout.length);
+            
+            const ast = JSON.parse(stdout);
+            console.log('AST parsed successfully');
+            return ast;
         } catch (error) {
-            throw new Error(`Failed to convert document to AST: ${error}`);
+            console.error('Failed to convert document to AST:', error);
+            throw error;
         }
     }
 
     extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
+        console.log('Extracting code blocks from AST...');
         const codeBlocks: PandocCodeBlock[] = [];
         
         const processNode = (node: PandocASTNode) => {
             if (node.t === 'CodeBlock') {
+                console.log('Found code block:', node);
                 const [[identifier, classes, attrs], content] = node.c;
                 const language = classes[0] || '';
                 
                 // Parse noweb references from the content
                 const references = this.extractNowebReferences(content);
+                console.log('Code block details:', { identifier, language, references });
                 
                 // Extract filename if present in attributes
                 const fileAttr = attrs.find(([key]: string[]) => key === 'file');
