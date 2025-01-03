@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './types';
+import { DocumentMap, FileMap, DocumentBlock } from './types';
 import { PandocService } from '../pandoc/service';
 import { Logger } from '../services/logger';
 import { IDocumentManager, IPandocService } from '../services/interfaces';
@@ -8,141 +8,127 @@ import { DocumentProcessor } from './processor';
 import { DependencyManager } from './dependency-manager';
 import { ContentExpander } from './content-expander';
 
-/**
- * Manages document blocks, their relationships, and provides navigation capabilities
- * for the Entangled literate programming system.
- */
 export class DocumentManager implements IDocumentManager {
-    // Singleton instance with lazy initialization
-    private static _instance?: DocumentManager;
-    
-    private readonly documents: DocumentMap = {};
-    private readonly fileMap: FileMap = {};
-    private readonly services: {
-        pandoc: IPandocService;
-        logger: Logger;
-        processor: DocumentProcessor;
-        dependencies: DependencyManager;
-        expander: ContentExpander;
-    };
+    private static instance: DocumentManager;
+    protected documents: DocumentMap = {};
+    private fileMap: FileMap = {};
+    private pandocService: IPandocService;
+    private logger: Logger;
+    private processor: DocumentProcessor;
+    private dependencyManager: DependencyManager;
+    private contentExpander: ContentExpander;
 
     private constructor() {
-        this.services = {
-            pandoc: PandocService.getInstance(),
-            logger: Logger.getInstance(),
-            processor: new DocumentProcessor(),
-            dependencies: new DependencyManager(),
-            expander: new ContentExpander()
-        };
+        this.pandocService = PandocService.getInstance();
+        this.logger = Logger.getInstance();
+        this.processor = new DocumentProcessor();
+        this.dependencyManager = new DependencyManager();
+        this.contentExpander = new ContentExpander();
     }
 
     public static getInstance(): DocumentManager {
-        return this._instance ??= new DocumentManager();
+        if (!DocumentManager.instance) {
+            DocumentManager.instance = new DocumentManager();
+        }
+        return DocumentManager.instance;
     }
 
-    /**
-     * Parses a document to extract and process code blocks
-     */
     async parseDocument(document: vscode.TextDocument): Promise<void> {
-        const { uri } = document;
-        const uriString = uri.toString();
-        
-        this.services.logger.info('Parsing document', { uri: uriString });
+        const uri = document.uri.toString();
+        this.logger.info('Parsing document', { uri });
         
         try {
-            const blocks = await this.extractAndProcessBlocks(document);
-            this.updateDocumentBlocks(uriString, blocks);
-            this.services.dependencies.updateDependencies(this.documents);
+            const ast = await this.pandocService.convertToAST(document);
+            const blocks = this.pandocService.extractCodeBlocks(ast);
             
-            this.services.logger.info('Document parsing completed', {
-                blocks: Object.keys(this.documents).length,
-                files: this.fileMap[uriString]?.size ?? 0
+            // Clear existing blocks for this document
+            this.clearDocumentBlocks(uri);
+            
+            // Process and add new blocks
+            const processedBlocks = this.processor.processBlocks(document, blocks);
+            this.addDocumentBlocks(uri, processedBlocks);
+
+            // Update dependencies
+            this.dependencyManager.updateDependencies(this.documents);
+            
+            this.logger.info('Document parsing completed', {
+                totalBlocks: Object.keys(this.documents).length,
+                fileBlocks: Array.from(this.fileMap[uri] || [])
             });
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.services.logger.error('Document parsing failed', new Error(message), { uri: uriString });
-            throw new DocumentParseError(message, uriString);
+            this.logger.error('Failed to parse document', error instanceof Error ? error : new Error(String(error)), { uri });
+            throw new DocumentParseError(error instanceof Error ? error.message : String(error), uri);
         }
     }
 
-    /**
-     * Finds all definitions of a given block identifier
-     */
-    findDefinition(identifier: string): vscode.Location[] {
-        return (this.documents[identifier] ?? [])
-            .map(block => new vscode.Location(block.location.uri, block.location.range));
-    }
-
-    /**
-     * Finds all references to a given block identifier
-     */
-    findReferences(identifier: string): vscode.Location[] {
-        const blocks = this.documents[identifier] ?? [];
-        if (!blocks.length) {
-            this.services.logger.warn('No references found', { identifier });
-            return [];
-        }
-
-        const locations = new Set<vscode.Location>();
-        
-        // Add definitions
-        blocks.forEach(block => {
-            locations.add(new vscode.Location(block.location.uri, block.location.range));
-            
-            // Add dependent references
-            block.dependents.forEach(dependent => {
-                this.documents[dependent]?.forEach(depBlock => {
-                    locations.add(new vscode.Location(depBlock.location.uri, depBlock.location.range));
-                });
-            });
-        });
-
-        return Array.from(locations);
-    }
-
-    findCircularReferences(): CircularReference[] {
-        return this.services.dependencies.findCircularReferences(this.documents);
-    }
-
-    getExpandedContent(identifier: string): string {
-        return this.services.expander.expandContent(identifier, this.documents);
-    }
-
-    clearCache(): void {
-        Object.keys(this.documents).forEach(key => delete this.documents[key]);
-        Object.keys(this.fileMap).forEach(key => delete this.fileMap[key]);
-        this.services.logger.info('Cache cleared');
-    }
-
-    // Private helper methods
-    private async extractAndProcessBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
-        const ast = await this.services.pandoc.convertToAST(document);
-        const blocks = this.services.pandoc.extractCodeBlocks(ast);
-        return this.services.processor.processBlocks(document, blocks);
-    }
-
-    private updateDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
-        // Clear existing blocks
+    private clearDocumentBlocks(uri: string): void {
         if (this.fileMap[uri]) {
-            this.fileMap[uri].forEach(identifier => {
+            this.logger.debug('Clearing existing blocks', { uri });
+            for (const identifier of this.fileMap[uri]) {
                 this.documents[identifier] = this.documents[identifier]?.filter(
                     block => block.location.uri.toString() !== uri
-                ) ?? [];
-                
-                if (!this.documents[identifier]?.length) {
+                ) || [];
+                if (this.documents[identifier].length === 0) {
                     delete this.documents[identifier];
                 }
-            });
+            }
         }
-
-        // Add new blocks
         this.fileMap[uri] = new Set();
-        blocks.forEach(block => {
+    }
+
+    private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
+        for (const block of blocks) {
             if (!this.documents[block.identifier]) {
                 this.documents[block.identifier] = [];
             }
             this.documents[block.identifier].push(block);
             this.fileMap[uri].add(block.identifier);
-        });
+        }
+    }
+
+    findDefinition(identifier: string): vscode.Location[] {
+        const blocks = this.documents[identifier];
+        if (!blocks?.length) {
+            this.logger.warn('No definition found for block', { identifier });
+            return [];
+        }
+
+        return blocks.map(block => new vscode.Location(block.location.uri, block.location.range));
+    }
+
+    findReferences(identifier: string): vscode.Location[] {
+        const blocks = this.documents[identifier];
+        if (!blocks?.length) {
+            this.logger.warn('No references found for block', { identifier });
+            return [];
+        }
+
+        const locations: vscode.Location[] = [];
+        locations.push(...this.findDefinition(identifier));
+
+        for (const block of blocks) {
+            for (const dependent of block.dependents) {
+                const depBlocks = this.documents[dependent];
+                if (depBlocks) {
+                    locations.push(...depBlocks.map(b => new vscode.Location(b.location.uri, b.location.range)));
+                }
+            }
+        }
+
+        return locations;
+    }
+
+    findCircularReferences() {
+        return this.dependencyManager.findCircularReferences(this.documents);
+    }
+
+    getExpandedContent(identifier: string): string {
+        return this.contentExpander.expandContent(identifier, this.documents);
+    }
+
+    clearCache(): void {
+        this.documents = {};
+        this.fileMap = {};
+        this.logger.info('Cache cleared');
     }
 }

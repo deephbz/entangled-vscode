@@ -3,28 +3,50 @@
   ✓ Set up package.json with proper configuration
   ✓ Added language configuration for Entangled Markdown
 
-✓ Pandoc Integration (Initial Setup)
+✓ Pandoc Integration (Core)
   ✓ Created types for Pandoc AST
   ✓ Implemented PandocService with AST conversion
   ✓ Added code block extraction functionality
-  ✓ Implemented noweb reference parsing
+  ✓ Implemented error handling (PandocError)
+  ◐ Adding AST result caching
+  ○ Incremental parsing support
 
-✓ Document Structure Manager
-  ✓ Designed document structure interface
-  ✓ Implemented DocumentManager class with singleton pattern
-  ✓ Added block storage and retrieval functionality
-  ✓ Implemented reference resolution and circular dependency detection
-  ✓ Added content expansion with caching
+✓ Document Management
+  ✓ Designed and implemented interfaces
+  ✓ Implemented DocumentManager singleton
+  ✓ Added DependencyManager for references
+  ✓ Implemented ContentExpander
+  ✓ Added document parsing and caching
+  ◐ Optimizing block storage for large files
 
-✓ Navigation Provider
-  ✓ Created DocumentSymbolProvider for code block outline
-  ✓ Implemented DefinitionProvider for go-to-definition
-  ✓ Implemented ReferenceProvider for find-all-references
-  ✓ Added HoverProvider for block information
-  ✓ Integrated with DocumentManager
+✓ Navigation Features
+  ✓ Implemented DefinitionProvider
+  ✓ Implemented ReferenceProvider
+  ✓ Added HoverProvider
+  ✓ Created DocumentSymbolProvider
+  ✓ Added error handling and logging
+  ◐ Optimizing provider performance
 
 ✓ VSCode Integration
-  ✓ Updated extension activation events
-  ✓ Implemented navigation commands
+  ✓ Set up extension activation events
+  ✓ Implemented command handlers
   ✓ Added document change tracking
-  ✓ Registered language providers
+  ✓ Created output channel for logging
+  ◐ Adding visual indicators for references
+  ○ Implementing folding support
+
+○ Testing and Documentation
+  ◐ Creating example markdown files
+  ○ Unit tests for core services
+  ○ Integration tests
+  ○ API documentation
+
+○ Performance Optimization
+  ○ Profile and optimize critical paths
+  ○ Memory usage optimization
+  ○ Large file handling improvements
+
+Legend:
+✓ Complete
+◐ In Progress
+○ Not Started
