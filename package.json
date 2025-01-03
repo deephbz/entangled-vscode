@@ -36,6 +36,18 @@
       {
         "command": "entangled-vscode.findReferences",
         "title": "Find References"
+      },
+      {
+        "command": "entangled-vscode.peekReferences",
+        "title": "Peek References"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "entangled-vscode.peekReferences",
+        "key": "alt+f12",
+        "mac": "alt+f12",
+        "when": "editorTextFocus && editorLangId == 'entangled-markdown'"
       }
     ],
     "colors": [
@@ -43,36 +55,36 @@
         "id": "entangled.definition.background",
         "description": "Background color for code block definitions",
         "defaults": {
-          "dark": "#2d4a4d",
-          "light": "#e3f2f2",
-          "highContrast": "#153e3e"
+          "dark": "#1d3b55",
+          "light": "#e6f3ff",
+          "highContrast": "#0d2339"
         }
       },
       {
         "id": "entangled.definition.foreground",
         "description": "Text color for code block definitions",
         "defaults": {
-          "dark": "#4ec9b0",
-          "light": "#267f6b",
-          "highContrast": "#60d4ba"
+          "dark": "#61afef",
+          "light": "#2b7ae2",
+          "highContrast": "#7fbfff"
         }
       },
       {
         "id": "entangled.continuation.background",
         "description": "Background color for code block continuations",
         "defaults": {
-          "dark": "#2d3d4a",
-          "light": "#e3eaf2",
-          "highContrast": "#153e3e"
+          "dark": "#2b4f73",
+          "light": "#f0f7ff",
+          "highContrast": "#1a3b59"
         }
       },
       {
         "id": "entangled.continuation.foreground",
         "description": "Text color for code block continuations",
         "defaults": {
-          "dark": "#569cd6",
-          "light": "#2b5589",
-          "highContrast": "#60acd6"
+          "dark": "#56b6c2",
+          "light": "#3792a4",
+          "highContrast": "#76d6e2"
         }
       },
       {

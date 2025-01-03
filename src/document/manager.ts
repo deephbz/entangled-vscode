@@ -104,8 +104,15 @@ export class DocumentManager implements IDocumentManager {
         }
 
         const locations: vscode.Location[] = [];
-        locations.push(...this.findDefinition(identifier));
+        
+        // Add all reference ranges from all blocks
+        for (const block of blocks) {
+            for (const range of block.referenceRanges) {
+                locations.push(new vscode.Location(block.location.uri, range));
+            }
+        }
 
+        // Add all blocks that reference this identifier
         for (const block of blocks) {
             for (const dependent of block.dependents) {
                 const depBlocks = this.documents[dependent];

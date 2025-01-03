@@ -102,7 +102,22 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
         vscode.workspace.onDidOpenTextDocument(handleDocument),
         vscode.commands.registerCommand('entangled-vscode.goToDefinition', createGoToDefinitionHandler()),
-        vscode.commands.registerCommand('entangled-vscode.findReferences', createFindReferencesHandler())
+        vscode.commands.registerCommand('entangled-vscode.findReferences', createFindReferencesHandler()),
+        vscode.languages.registerReferenceProvider(
+            { language: 'entangled-markdown' },
+            new EntangledReferenceProvider()
+        ),
+        vscode.commands.registerCommand('entangled-vscode.peekReferences', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                return;
+            }
+
+            // Execute the built-in references command which will use our reference provider
+            await vscode.commands.executeCommand(
+                'editor.action.referenceSearch.trigger'
+            );
+        })
     );
 
     // Update decorations when active editor changes
