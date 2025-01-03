@@ -28,9 +28,12 @@ export function activate(context: vscode.ExtensionContext) {
     // Add output channel to subscriptions
     context.subscriptions.push(outputChannel);
 
-    // Register for markdown files
-    const selector = { language: 'markdown', scheme: 'file' };
-    log(`Registering language providers for selector: ${JSON.stringify(selector)}`);
+    // Register for both markdown and entangled-markdown files
+    const selector = [
+        { language: 'markdown', scheme: 'file' },
+        { language: 'entangled-markdown', scheme: 'file' }
+    ];
+    log(`Registering language providers for selectors: ${JSON.stringify(selector)}`);
 
     // Register providers
     log('Registering language providers...');
@@ -50,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             
             log(`Document changed: ${e.document.uri} (language: ${e.document.languageId})`);
-            if (e.document.languageId === 'markdown') {
+            if (e.document.languageId === 'markdown' || e.document.languageId === 'entangled-markdown') {
                 log('Processing markdown document change');
                 try {
                     await documentManager.parseDocument(e.document);
@@ -71,7 +74,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             
             log(`Document opened: ${document.uri} (language: ${document.languageId})`);
-            if (document.languageId === 'markdown') {
+            if (document.languageId === 'markdown' || document.languageId === 'entangled-markdown') {
                 log('Processing opened markdown document');
                 try {
                     await documentManager.parseDocument(document);
@@ -91,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
     const activeEditor = vscode.window.activeTextEditor;
     if (activeEditor) {
         log(`Active editor document: ${activeEditor.document.uri} (language: ${activeEditor.document.languageId})`);
-        if (activeEditor.document.languageId === 'markdown') {
+        if (activeEditor.document.languageId === 'markdown' || activeEditor.document.languageId === 'entangled-markdown') {
             log('Processing active document');
             documentManager.parseDocument(activeEditor.document).catch(error => {
                 log(`Error processing active document: ${error}`);

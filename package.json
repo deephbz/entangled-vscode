@@ -7,14 +7,17 @@
     "vscode": "^1.94.0"
   },
   "categories": [
-    "Programming Languages",
-    "Other"
+    "Programming Languages"
   ],
-  "activationEvents": [
-    "onLanguage:markdown"
-  ],
-  "main": "./out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "entangled-markdown",
+        "aliases": ["Entangled Markdown", "entangled-markdown"],
+        "extensions": [".md"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "commands": [
       {
         "command": "entangled-vscode.goToDefinition",
@@ -24,16 +27,13 @@
         "command": "entangled-vscode.findReferences",
         "title": "Find References"
       }
-    ],
-    "languages": [
-      {
-        "id": "entangled-markdown",
-        "aliases": ["Entangled Markdown", "entangled-markdown"],
-        "extensions": [".md"],
-        "configuration": "./language-configuration.json"
-      }
     ]
   },
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:entangled-markdown"
+  ],
+  "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
