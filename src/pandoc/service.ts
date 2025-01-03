@@ -92,16 +92,15 @@ export class PandocService {
         
         const processNode = (node: PandocASTNode) => {
             if (node.t === 'CodeBlock') {
-                log(`Found code block node: ${JSON.stringify(node, null, 2)}`);
+                // log(`Found code block node: ${JSON.stringify(node, null, 2)}`);
                 const [[identifier, classes, attrs], content] = node.c;
                 
                 // Extract language from first class
                 const language = classes[0] || '';
-                log(`Code block class: ${classes.join(', ')}`);
                 
                 // Parse noweb references from the content
                 const references = this.extractNowebReferences(content);
-                log(`Code block details: identifier=${identifier}, language=${language}, references=${references.join(', ')}`);
+                log(`Code block class: ${classes.join(', ')} details: identifier=${identifier}, language=${language}, references=${references.join(', ')}`);
                 
                 // Extract filename if present in attributes
                 const fileAttr = attrs.find(([key]: string[]) => key === 'file');

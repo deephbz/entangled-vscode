@@ -52,7 +52,7 @@ export class DocumentManager {
             for (const block of blocks) {
                 const location = this.findBlockLocation(document, block);
                 if (location) {
-                    log(`Found location for block ${block.identifier}`);
+                    log(`Found location for block [${block.identifier}]`);
                     const documentBlock: DocumentBlock = {
                         ...block,
                         location,
@@ -65,9 +65,9 @@ export class DocumentManager {
                     }
                     this.documents[block.identifier].push(documentBlock);
                     this.fileMap[uri].add(block.identifier);
-                    log(`Added block ${block.identifier} to documents`);
+                    log(`Added block [${block.identifier}] to documents`);
                 } else {
-                    log(`Could not find location for block ${block.identifier}`);
+                    log(`Could not find location for block [${block.identifier}]`);
                 }
             }
 
@@ -85,7 +85,7 @@ export class DocumentManager {
     }
 
     private findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
-        log(`Finding location for block: ${block.identifier}`);
+        log(`Finding location for block: [${block.identifier}]`);
         const text = document.getText();
         const lines = text.split('\n');
         let inCodeBlock = false;
@@ -93,7 +93,7 @@ export class DocumentManager {
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            log(`Checking line ${i}: ${line}`);
+            // log(`Checking line ${i}: ${line}`);
             
             if (line.startsWith('```')) {
                 if (!inCodeBlock) {
@@ -105,7 +105,7 @@ export class DocumentManager {
                         // Look for #identifier in attributes
                         const idMatch = attributes.match(/#([^\s}]+)/);
                         if (idMatch && idMatch[1] === block.identifier) {
-                            log(`Found matching block: ${block.identifier}`);
+                            log(`Found matching block: [${block.identifier}]`);
                             startLine = i;
                             inCodeBlock = true;
                         }
@@ -113,7 +113,7 @@ export class DocumentManager {
                 } else {
                     if (startLine !== -1) {
                         // We found the end of our block
-                        log(`Found end of block ${block.identifier} at line ${i}`);
+                        log(`Found end of block [${block.identifier}] at line ${i}`);
                         return {
                             uri: document.uri,
                             range: new vscode.Range(
@@ -127,7 +127,7 @@ export class DocumentManager {
                 }
             }
         }
-        log(`No location found for block: ${block.identifier}`);
+        // log(`No location found for block: [${block.identifier}]`);
         return null;
     }
 
