@@ -9,16 +9,29 @@ import {
     EntangledDocumentSymbolProvider
 } from './navigation/providers';
 
+// Create output channel
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+
+function log(message: string) {
+    console.log(message);
+    outputChannel.appendLine(message);
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Activating Entangled VSCode extension');
+    log('Activating Entangled VSCode extension');
     
     const documentManager = DocumentManager.getInstance();
+    
+    // Add output channel to subscriptions
+    context.subscriptions.push(outputChannel);
+
+    // Register for markdown files
     const selector = { language: 'markdown', scheme: 'file' };
 
     // Register providers
-    console.log('Registering language providers...');
+    log('Registering language providers...');
     context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(selector, new EntangledDefinitionProvider()),
         vscode.languages.registerReferenceProvider(selector, new EntangledReferenceProvider()),
@@ -29,38 +42,38 @@ export function activate(context: vscode.ExtensionContext) {
     // Watch for document changes
     context.subscriptions.push(
         vscode.workspace.onDidChangeTextDocument(async (e) => {
-            console.log(`Document changed: ${e.document.uri}`);
+            log(`Document changed: ${e.document.uri}`);
             if (e.document.languageId === 'markdown') {
-                console.log('Processing markdown document change');
+                log('Processing markdown document change');
                 try {
                     await documentManager.parseDocument(e.document);
                 } catch (error) {
-                    console.error('Error processing document change:', error);
+                    log(`Error processing document change: ${error}`);
                 }
             }
         }),
         vscode.workspace.onDidOpenTextDocument(async (document) => {
-            console.log(`Document opened: ${document.uri}`);
+            log(`Document opened: ${document.uri}`);
             if (document.languageId === 'markdown') {
-                console.log('Processing opened markdown document');
+                log('Processing opened markdown document');
                 try {
                     await documentManager.parseDocument(document);
                 } catch (error) {
-                    console.error('Error processing opened document:', error);
+                    log(`Error processing opened document: ${error}`);
                 }
             }
         })
     );
 
     // Parse all currently open markdown documents
-    console.log('Processing existing documents...');
+    log('Processing existing documents...');
     vscode.workspace.textDocuments.forEach(async (document) => {
         if (document.languageId === 'markdown') {
-            console.log(`Processing existing document: ${document.uri}`);
+            log(`Processing existing document: ${document.uri}`);
             try {
                 await documentManager.parseDocument(document);
             } catch (error) {
-                console.error('Error processing existing document:', error);
+                log(`Error processing existing document: ${error}`);
             }
         }
     });
@@ -105,7 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    console.log('Entangled VSCode extension activated successfully');
+    log('Entangled VSCode extension activated successfully');
 }
 
 // This method is called when your extension is deactivated

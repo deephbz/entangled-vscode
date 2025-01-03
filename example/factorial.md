@@ -4,7 +4,7 @@ This document demonstrates a literate programming approach to implementing a fac
 
 ## Function Definition
 
-```{python #factorial-function}
+``` {.python #factorial-function}
 def factorial(n: int) -> int:
     """Calculate the factorial of a number."""
     if n < 0:
@@ -14,21 +14,20 @@ def factorial(n: int) -> int:
 
 ## Base Case
 
-```{python #base-case}
+``` {.python #base-case}
 1
 ```
 
 ## Recursive Case
 
-```{python #recursive-case}
+``` {.python #recursive-case}
 n * factorial(n - 1)
 ```
 
 ## Complete Implementation
 
-```{python #complete-implementation}
+``` {.python file=factorial.py}
 <<factorial-function>>
 
 # Test the function
 print(factorial(5))  # Should print 120
-```

@@ -37,7 +37,8 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
     ): vscode.ProviderResult<vscode.Location[]> {
         // Check if we're in a code block identifier
         const lineText = document.lineAt(position.line).text;
-        const codeBlockMatch = lineText.match(/^```\{.*#([^}]+)\}/);
+        // Match both standard code blocks with {.lang #id} and file blocks with {.lang file=path}
+        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
         if (codeBlockMatch) {
             const identifier = codeBlockMatch[1];
             return this.documentManager.findReferences(identifier);
@@ -69,13 +70,13 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
     ): vscode.ProviderResult<vscode.Hover> {
         // Check for code block identifier
         const lineText = document.lineAt(position.line).text;
-        const codeBlockMatch = lineText.match(/^```\{.*#([^}]+)\}/);
+        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
         if (codeBlockMatch) {
             const identifier = codeBlockMatch[1];
             const content = this.documentManager.getExpandedContent(identifier);
             return new vscode.Hover([
                 new vscode.MarkdownString('**Code Block Definition**'),
-                new vscode.MarkdownString(content)
+                new vscode.MarkdownString('```' + content + '```')
             ]);
         }
 
@@ -87,7 +88,7 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
             const content = this.documentManager.getExpandedContent(identifier);
             return new vscode.Hover([
                 new vscode.MarkdownString('**Referenced Code Block**'),
-                new vscode.MarkdownString(content)
+                new vscode.MarkdownString('```' + content + '```')
             ]);
         }
 
@@ -110,25 +111,35 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
         const text = document.getText();
         const lines = text.split('\n');
         
-        let currentBlock: { range: vscode.Range; identifier: string } | null = null;
+        let currentBlock: { range: vscode.Range; identifier: string; language: string } | null = null;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const codeBlockMatch = line.match(/^```\{.*#([^}]+)\}/);
+            // Match both standard code blocks and file blocks
+            const codeBlockMatch = line.match(/^```\s*\{([^}]*)\}/);
             
             if (codeBlockMatch) {
-                const startPos = new vscode.Position(i, 0);
-                currentBlock = {
-                    range: new vscode.Range(startPos, startPos),
-                    identifier: codeBlockMatch[1]
-                };
+                const attributes = codeBlockMatch[1];
+                // Extract identifier and language
+                const idMatch = attributes.match(/#([^}\s]+)/);
+                const langMatch = attributes.match(/\.([^}\s#]+)/);
+                
+                if (idMatch) {
+                    const startPos = new vscode.Position(i, 0);
+                    currentBlock = {
+                        range: new vscode.Range(startPos, startPos),
+                        identifier: idMatch[1],
+                        language: langMatch ? langMatch[1] : ''
+                    };
+                }
             } else if (line.trim() === '```' && currentBlock) {
                 const endPos = new vscode.Position(i, line.length);
                 currentBlock.range = new vscode.Range(currentBlock.range.start, endPos);
                 
+                const detail = currentBlock.language ? `[${currentBlock.language}]` : '';
                 symbols.push(new vscode.DocumentSymbol(
                     currentBlock.identifier,
-                    'Code Block',
+                    detail,
                     vscode.SymbolKind.Class,
                     currentBlock.range,
                     currentBlock.range
