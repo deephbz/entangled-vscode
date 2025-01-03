@@ -42,6 +42,11 @@ export function activate(context: vscode.ExtensionContext) {
     // Watch for document changes
     context.subscriptions.push(
         vscode.workspace.onDidChangeTextDocument(async (e) => {
+            // Skip output channel documents
+            if (e.document.uri.scheme === 'output') {
+                return;
+            }
+            
             log(`Document changed: ${e.document.uri}`);
             if (e.document.languageId === 'markdown') {
                 log('Processing markdown document change');
@@ -53,6 +58,11 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
         vscode.workspace.onDidOpenTextDocument(async (document) => {
+            // Skip output channel documents
+            if (document.uri.scheme === 'output') {
+                return;
+            }
+            
             log(`Document opened: ${document.uri}`);
             if (document.languageId === 'markdown') {
                 log('Processing opened markdown document');
@@ -65,18 +75,14 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Parse all currently open markdown documents
-    log('Processing existing documents...');
-    vscode.workspace.textDocuments.forEach(async (document) => {
-        if (document.languageId === 'markdown') {
-            log(`Processing existing document: ${document.uri}`);
-            try {
-                await documentManager.parseDocument(document);
-            } catch (error) {
-                log(`Error processing existing document: ${error}`);
-            }
-        }
-    });
+    // Process currently active document if it's markdown
+    const activeEditor = vscode.window.activeTextEditor;
+    if (activeEditor && activeEditor.document.languageId === 'markdown') {
+        log('Processing active document');
+        documentManager.parseDocument(activeEditor.document).catch(error => {
+            log(`Error processing active document: ${error}`);
+        });
+    }
 
     // Register commands
     context.subscriptions.push(

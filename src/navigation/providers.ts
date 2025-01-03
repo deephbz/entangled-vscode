@@ -1,6 +1,13 @@
 import * as vscode from 'vscode';
 import { DocumentManager } from '../document/manager';
 
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+
+function log(message: string) {
+    console.log(message);
+    outputChannel.appendLine(message);
+}
+
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     private documentManager: DocumentManager;
 
@@ -97,58 +104,39 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
 }
 
 export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-    private documentManager: DocumentManager;
-
-    constructor() {
-        this.documentManager = DocumentManager.getInstance();
-    }
+    private documentManager = DocumentManager.getInstance();
 
     async provideDocumentSymbols(
         document: vscode.TextDocument,
         token: vscode.CancellationToken
     ): Promise<vscode.DocumentSymbol[]> {
+        log('Providing document symbols...');
         const symbols: vscode.DocumentSymbol[] = [];
-        const text = document.getText();
-        const lines = text.split('\n');
+        const uri = document.uri.toString();
         
-        let currentBlock: { range: vscode.Range; identifier: string; language: string } | null = null;
+        // Get all blocks in this document from the document manager
+        const documentBlocks = this.documentManager.documents;
+        log(`Found ${Object.keys(documentBlocks).length} total blocks`);
         
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            // Match both standard code blocks and file blocks
-            const codeBlockMatch = line.match(/^```\s*\{([^}]*)\}/);
-            
-            if (codeBlockMatch) {
-                const attributes = codeBlockMatch[1];
-                // Extract identifier and language
-                const idMatch = attributes.match(/#([^}\s]+)/);
-                const langMatch = attributes.match(/\.([^}\s#]+)/);
-                
-                if (idMatch) {
-                    const startPos = new vscode.Position(i, 0);
-                    currentBlock = {
-                        range: new vscode.Range(startPos, startPos),
-                        identifier: idMatch[1],
-                        language: langMatch ? langMatch[1] : ''
-                    };
+        // Filter blocks for this document
+        for (const [identifier, blocks] of Object.entries(documentBlocks)) {
+            log(`Processing blocks for identifier: ${identifier}`);
+            for (const block of blocks) {
+                if (block.location.uri.toString() === uri) {
+                    log(`Creating symbol for block: ${identifier}`);
+                    const detail = block.language ? `[${block.language}]` : '';
+                    symbols.push(new vscode.DocumentSymbol(
+                        identifier,
+                        detail,
+                        vscode.SymbolKind.Class,
+                        block.location.range,
+                        block.location.range
+                    ));
                 }
-            } else if (line.trim() === '```' && currentBlock) {
-                const endPos = new vscode.Position(i, line.length);
-                currentBlock.range = new vscode.Range(currentBlock.range.start, endPos);
-                
-                const detail = currentBlock.language ? `[${currentBlock.language}]` : '';
-                symbols.push(new vscode.DocumentSymbol(
-                    currentBlock.identifier,
-                    detail,
-                    vscode.SymbolKind.Class,
-                    currentBlock.range,
-                    currentBlock.range
-                ));
-                
-                currentBlock = null;
             }
         }
         
+        log(`Returning ${symbols.length} symbols`);
         return symbols;
     }
 }

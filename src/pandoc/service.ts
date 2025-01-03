@@ -5,6 +5,14 @@ import { PandocAST, PandocCodeBlock, PandocASTNode } from './types';
 
 const execAsync = promisify(exec);
 
+// Get the output channel from extension
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+
+function log(message: string) {
+    console.log(message);
+    outputChannel.appendLine(message);
+}
+
 export class PandocService {
     private static instance: PandocService;
 
@@ -19,38 +27,62 @@ export class PandocService {
 
     async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
         try {
-            console.log('Converting document to AST...');
+            log('Converting document to AST...');
             const text = document.getText();
-            console.log('Document content:', text.substring(0, 100) + '...');
+            log(`Document content (first 100 chars): ${text.substring(0, 100)}...`);
             
-            const command = `echo ${JSON.stringify(text)} | pandoc -f markdown -t json`;
-            console.log('Executing pandoc command:', command);
+            // Write content to a temporary file to avoid command line length limits
+            const tmpFile = await this.writeToTempFile(text);
+            const command = `pandoc -f markdown -t json "${tmpFile}"`;
+            log(`Executing pandoc command: ${command}`);
             
-            const { stdout } = await execAsync(command);
-            console.log('Pandoc output received, length:', stdout.length);
+            const { stdout, stderr } = await execAsync(command);
+            if (stderr) {
+                log(`Pandoc stderr: ${stderr}`);
+            }
+            log(`Pandoc output received, length: ${stdout.length}`);
             
-            const ast = JSON.parse(stdout);
-            console.log('AST parsed successfully');
-            return ast;
+            try {
+                const ast = JSON.parse(stdout);
+                log('AST parsed successfully');
+                return ast;
+            } catch (parseError) {
+                log(`Failed to parse AST: ${parseError}`);
+                log(`Raw output: ${stdout.substring(0, 200)}...`);
+                throw parseError;
+            }
         } catch (error) {
-            console.error('Failed to convert document to AST:', error);
+            log(`Failed to convert document to AST: ${error}`);
             throw error;
         }
     }
 
+    private async writeToTempFile(content: string): Promise<string> {
+        const tmpDir = '/tmp';
+        const tmpFile = `${tmpDir}/entangled-${Date.now()}.md`;
+        await vscode.workspace.fs.writeFile(
+            vscode.Uri.file(tmpFile),
+            Buffer.from(content, 'utf8')
+        );
+        return tmpFile;
+    }
+
     extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
-        console.log('Extracting code blocks from AST...');
+        log('Extracting code blocks from AST...');
         const codeBlocks: PandocCodeBlock[] = [];
         
         const processNode = (node: PandocASTNode) => {
             if (node.t === 'CodeBlock') {
-                console.log('Found code block:', node);
+                log(`Found code block node: ${JSON.stringify(node, null, 2)}`);
                 const [[identifier, classes, attrs], content] = node.c;
+                
+                // Extract language from first class
                 const language = classes[0] || '';
+                log(`Code block class: ${classes.join(', ')}`);
                 
                 // Parse noweb references from the content
                 const references = this.extractNowebReferences(content);
-                console.log('Code block details:', { identifier, language, references });
+                log(`Code block details: identifier=${identifier}, language=${language}, references=${references.join(', ')}`);
                 
                 // Extract filename if present in attributes
                 const fileAttr = attrs.find(([key]: string[]) => key === 'file');
@@ -61,13 +93,14 @@ export class PandocService {
                     language,
                     content,
                     references,
-                    lineNumber: -1, // Will be populated later
+                    lineNumber: -1,
                     fileName
                 });
             }
         };
 
         this.traverseAST(ast, processNode);
+        log(`Found ${codeBlocks.length} code blocks`);
         return codeBlocks;
     }
 

@@ -21,7 +21,7 @@ def factorial(n: int) -> int:
 ## Recursive Case
 
 ``` {.python #recursive-case}
-n * factorial(n - 1)
+n * factorial(n - 1)  #
 ```
 
 ## Complete Implementation
@@ -31,3 +31,4 @@ n * factorial(n - 1)
 
 # Test the function
 print(factorial(5))  # Should print 120
+```
