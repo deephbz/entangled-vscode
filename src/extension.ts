@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { DocumentManager } from './document/manager';
 import {
@@ -9,152 +7,107 @@ import {
     EntangledDocumentSymbolProvider
 } from './navigation/providers';
 
-// Create a single shared output channel
-export const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+// Types
+type DocumentHandler = (document: vscode.TextDocument) => Promise<void>;
 
-export function log(message: string) {
-    console.log(message);
-    outputChannel.appendLine(`[${new Date().toISOString()}] ${message}`);
-    outputChannel.show(true);  // Make sure the output is visible
-}
+// Extension Output Channel
+const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+const log = (message: string, error?: Error): void => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}`;
+    console.log(logMessage);
+    outputChannel.appendLine(logMessage);
+    if (error?.stack) {
+        outputChannel.appendLine(`Stack trace:\n${error.stack}`);
+    }
+};
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+// Document Processing
+const isMarkdownDocument = (document: vscode.TextDocument): boolean =>
+    ['markdown', 'entangled-markdown'].includes(document.languageId);
+
+const handleDocument: DocumentHandler = async (document: vscode.TextDocument) => {
+    if (document.uri.scheme === 'output' || !isMarkdownDocument(document)) {
+        return;
+    }
+
+    try {
+        log(`Processing document: ${document.uri}`);
+        await DocumentManager.getInstance().parseDocument(document);
+    } catch (error) {
+        log(`Error processing document: ${error instanceof Error ? error.message : String(error)}`, 
+            error instanceof Error ? error : undefined);
+    }
+};
+
+// Command Handlers
+const createGoToDefinitionHandler = () => async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
+    const definitions = await new EntangledDefinitionProvider().provideDefinition(
+        editor.document,
+        editor.selection.active,
+        new vscode.CancellationTokenSource().token
+    );
+
+    if (!definitions) return;
+    const location = Array.isArray(definitions) ? definitions[0] : definitions;
+    await vscode.window.showTextDocument(location.uri, { selection: location.range });
+};
+
+const createFindReferencesHandler = () => async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
+    const references = await new EntangledReferenceProvider().provideReferences(
+        editor.document,
+        editor.selection.active,
+        { includeDeclaration: true },
+        new vscode.CancellationTokenSource().token
+    );
+
+    if (references?.length) {
+        await vscode.commands.executeCommand('editor.action.showReferences',
+            editor.document.uri,
+            editor.selection.active,
+            references
+        );
+    }
+};
+
+// Extension Lifecycle
+export function activate(context: vscode.ExtensionContext): void {
     log('Activating Entangled VSCode extension');
     
-    const documentManager = DocumentManager.getInstance();
-    
-    // Add output channel to subscriptions
-    context.subscriptions.push(outputChannel);
-
-    // Register for both markdown and entangled-markdown files
-    const selector = [
+    const selector: vscode.DocumentSelector = [
         { language: 'markdown', scheme: 'file' },
         { language: 'entangled-markdown', scheme: 'file' }
     ];
-    log(`Registering language providers for selectors: ${JSON.stringify(selector)}`);
 
-    // Register providers
-    log('Registering language providers...');
+    // Register providers and handlers
     context.subscriptions.push(
+        outputChannel,
         vscode.languages.registerDefinitionProvider(selector, new EntangledDefinitionProvider()),
         vscode.languages.registerReferenceProvider(selector, new EntangledReferenceProvider()),
         vscode.languages.registerHoverProvider(selector, new EntangledHoverProvider()),
-        vscode.languages.registerDocumentSymbolProvider(selector, new EntangledDocumentSymbolProvider())
+        vscode.languages.registerDocumentSymbolProvider(selector, new EntangledDocumentSymbolProvider()),
+        vscode.workspace.onDidChangeTextDocument(e => handleDocument(e.document)),
+        vscode.workspace.onDidOpenTextDocument(handleDocument),
+        vscode.commands.registerCommand('entangled-vscode.goToDefinition', createGoToDefinitionHandler()),
+        vscode.commands.registerCommand('entangled-vscode.findReferences', createFindReferencesHandler())
     );
 
-    // Watch for document changes
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeTextDocument(async (e) => {
-            // Skip output channel documents
-            if (e.document.uri.scheme === 'output') {
-                return;
-            }
-            
-            log(`Document changed: ${e.document.uri} (language: ${e.document.languageId})`);
-            if (e.document.languageId === 'markdown' || e.document.languageId === 'entangled-markdown') {
-                log('Processing markdown document change');
-                try {
-                    await documentManager.parseDocument(e.document);
-                } catch (error) {
-                    log(`Error processing document change: ${error}`);
-                    if (error instanceof Error) {
-                        log(`Error stack: ${error.stack}`);
-                    }
-                }
-            } else {
-                log(`Skipping non-markdown document: ${e.document.languageId}`);
-            }
-        }),
-        vscode.workspace.onDidOpenTextDocument(async (document) => {
-            // Skip output channel documents
-            if (document.uri.scheme === 'output') {
-                return;
-            }
-            
-            log(`Document opened: ${document.uri} (language: ${document.languageId})`);
-            if (document.languageId === 'markdown' || document.languageId === 'entangled-markdown') {
-                log('Processing opened markdown document');
-                try {
-                    await documentManager.parseDocument(document);
-                } catch (error) {
-                    log(`Error processing opened document: ${error}`);
-                    if (error instanceof Error) {
-                        log(`Error stack: ${error.stack}`);
-                    }
-                }
-            } else {
-                log(`Skipping non-markdown document: ${document.languageId}`);
-            }
-        })
-    );
-
-    // Process currently active document if it's markdown
-    const activeEditor = vscode.window.activeTextEditor;
-    if (activeEditor) {
-        log(`Active editor document: ${activeEditor.document.uri} (language: ${activeEditor.document.languageId})`);
-        if (activeEditor.document.languageId === 'markdown' || activeEditor.document.languageId === 'entangled-markdown') {
-            log('Processing active document');
-            documentManager.parseDocument(activeEditor.document).catch(error => {
-                log(`Error processing active document: ${error}`);
-                if (error instanceof Error) {
-                    log(`Error stack: ${error.stack}`);
-                }
-            });
-        } else {
-            log(`Skipping non-markdown active document: ${activeEditor.document.languageId}`);
-        }
-    } else {
-        log('No active editor found');
+    // Process active document if it exists
+    if (vscode.window.activeTextEditor) {
+        handleDocument(vscode.window.activeTextEditor.document);
     }
-
-    // Register commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('entangled-vscode.goToDefinition', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) return;
-
-            const position = editor.selection.active;
-            const provider = new EntangledDefinitionProvider();
-            const definitions = await provider.provideDefinition(editor.document, position, new vscode.CancellationTokenSource().token);
-            
-            if (definitions && (Array.isArray(definitions) ? definitions.length > 0 : true)) {
-                const location = Array.isArray(definitions) ? definitions[0] : definitions;
-                await vscode.window.showTextDocument(location.uri, {
-                    selection: location.range
-                });
-            }
-        }),
-        vscode.commands.registerCommand('entangled-vscode.findReferences', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) return;
-
-            const position = editor.selection.active;
-            const provider = new EntangledReferenceProvider();
-            const references = await provider.provideReferences(
-                editor.document,
-                position,
-                { includeDeclaration: true },
-                new vscode.CancellationTokenSource().token
-            );
-
-            if (references && references.length > 0) {
-                await vscode.commands.executeCommand('editor.action.showReferences',
-                    editor.document.uri,
-                    position,
-                    references
-                );
-            }
-        })
-    );
 
     log('Entangled VSCode extension activated successfully');
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {
-    // Clean up if needed
-    const documentManager = DocumentManager.getInstance();
-    documentManager.clearCache();
+export function deactivate(): void {
+    DocumentManager.getInstance().clearCache();
 }
+
+export { outputChannel, log };

@@ -1,158 +1,141 @@
 import * as vscode from 'vscode';
 import { DocumentManager } from '../document/manager';
-import { log } from '../extension';
+import { Logger } from '../services/logger';
 
-/** Regular expression for matching noweb references <<identifier>> */
-const NOWEB_REFERENCE_REGEX = /<<([^>]+)>>/;
-
-/** Regular expression for matching code block headers with identifiers */
-const CODE_BLOCK_IDENTIFIER_REGEX = /^```\s*\{[^}]*#([^}\s]+)[^}]*\}/;
-
-/**
- * Base class for Entangled providers with common functionality.
- */
-abstract class EntangledProviderBase {
-    protected documentManager: DocumentManager;
+export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
+    private documentManager: DocumentManager;
+    private logger: Logger;
 
     constructor() {
         this.documentManager = DocumentManager.getInstance();
+        this.logger = Logger.getInstance();
     }
 
-    /**
-     * Extracts a noweb reference identifier from text at a given position.
-     */
-    protected getNowebReference(document: vscode.TextDocument, position: vscode.Position): string | null {
-        const range = document.getWordRangeAtPosition(position, NOWEB_REFERENCE_REGEX);
-        if (!range) return null;
-
-        const text = document.getText(range);
-        return text.substring(2, text.length - 2); // Remove << and >>
-    }
-
-    /**
-     * Extracts a code block identifier from a line.
-     */
-    protected getCodeBlockIdentifier(lineText: string): string | null {
-        const match = lineText.match(CODE_BLOCK_IDENTIFIER_REGEX);
-        return match?.[1] ?? null;
-    }
-}
-
-/**
- * Provides "Go to Definition" functionality for noweb references.
- */
-export class EntangledDefinitionProvider extends EntangledProviderBase implements vscode.DefinitionProvider {
     provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Definition> {
-        const identifier = this.getNowebReference(document, position);
-        return identifier ? this.documentManager.findDefinition(identifier) : null;
+        const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        if (!range) return null;
+
+        const text = document.getText(range);
+        const identifier = text.substring(2, text.length - 2); // Remove << and >>
+        this.logger.debug('Providing definition', { identifier });
+        return this.documentManager.findDefinition(identifier);
     }
 }
 
-/**
- * Provides "Find All References" functionality for code blocks and noweb references.
- */
-export class EntangledReferenceProvider extends EntangledProviderBase implements vscode.ReferenceProvider {
+export class EntangledReferenceProvider implements vscode.ReferenceProvider {
+    private documentManager: DocumentManager;
+    private logger: Logger;
+
+    constructor() {
+        this.documentManager = DocumentManager.getInstance();
+        this.logger = Logger.getInstance();
+    }
+
     provideReferences(
         document: vscode.TextDocument,
         position: vscode.Position,
-        context: vscode.ReferenceContext,
-        token: vscode.CancellationToken
+        _context: vscode.ReferenceContext,
+        _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Location[]> {
+        // Check if we're in a code block identifier
         const lineText = document.lineAt(position.line).text;
-        
-        // Check for code block identifier
-        const blockId = this.getCodeBlockIdentifier(lineText);
-        if (blockId) {
-            return this.documentManager.findReferences(blockId);
+        // Match both standard code blocks with {.lang #id} and file blocks with {.lang file=path}
+        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
+        if (codeBlockMatch) {
+            const identifier = codeBlockMatch[1];
+            this.logger.debug('Providing references for code block', { identifier });
+            return this.documentManager.findReferences(identifier);
         }
 
-        // Check for noweb reference
-        const refId = this.getNowebReference(document, position);
-        if (refId) {
-            return this.documentManager.findReferences(refId);
-        }
+        // Check if we're in a noweb reference
+        const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        if (!range) return null;
 
-        return [];
+        const text = document.getText(range);
+        const identifier = text.substring(2, text.length - 2); // Remove << and >>
+        this.logger.debug('Providing references for noweb reference', { identifier });
+        return this.documentManager.findReferences(identifier);
     }
 }
 
-/**
- * Provides hover information for code blocks and noweb references.
- */
-export class EntangledHoverProvider extends EntangledProviderBase implements vscode.HoverProvider {
+export class EntangledHoverProvider implements vscode.HoverProvider {
+    private documentManager: DocumentManager;
+    private logger: Logger;
+
+    constructor() {
+        this.documentManager = DocumentManager.getInstance();
+        this.logger = Logger.getInstance();
+    }
+
     provideHover(
         document: vscode.TextDocument,
         position: vscode.Position,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Hover> {
-        const lineText = document.lineAt(position.line).text;
+        // Check if we're hovering over a noweb reference
+        const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        if (!range) return null;
+
+        const text = document.getText(range);
+        const identifier = text.substring(2, text.length - 2); // Remove << and >>
         
-        // Check for code block identifier
-        const blockId = this.getCodeBlockIdentifier(lineText);
-        if (blockId) {
-            return this.createHover(blockId, 'Code Block Definition');
+        try {
+            const content = this.documentManager.getExpandedContent(identifier);
+            this.logger.debug('Providing hover content', { identifier });
+            return new vscode.Hover([
+                new vscode.MarkdownString(`**Code Block**: \`${identifier}\``),
+                new vscode.MarkdownString('```\n' + content + '\n```')
+            ]);
+        } catch (error) {
+            this.logger.error('Failed to provide hover content', error instanceof Error ? error : new Error(String(error)));
+            return null;
         }
-
-        // Check for noweb reference
-        const refId = this.getNowebReference(document, position);
-        if (refId) {
-            return this.createHover(refId, 'Referenced Code Block');
-        }
-
-        return null;
-    }
-
-    private createHover(identifier: string, title: string): vscode.Hover {
-        const content = this.documentManager.getExpandedContent(identifier);
-        return new vscode.Hover([
-            new vscode.MarkdownString(`**${title}**`),
-            new vscode.MarkdownString('```' + content + '```')
-        ]);
     }
 }
 
-/**
- * Provides document symbols (outline) for code blocks.
- */
-export class EntangledDocumentSymbolProvider extends EntangledProviderBase implements vscode.DocumentSymbolProvider {
+export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+    private logger = Logger.getInstance();
+
     async provideDocumentSymbols(
         document: vscode.TextDocument,
-        token: vscode.CancellationToken
+        _token: vscode.CancellationToken
     ): Promise<vscode.DocumentSymbol[]> {
-        log('Providing document symbols...');
-        const uri = document.uri.toString();
         const symbols: vscode.DocumentSymbol[] = [];
+        const text = document.getText();
+        const lines = text.split('\n');
         
-        // Get blocks for this document
-        const blocks = Object.entries(this.documentManager.documents)
-            .flatMap(([identifier, blocks]) => 
-                blocks
-                    .filter(block => block.location.uri.toString() === uri)
-                    .map(block => ({
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('```')) {
+                const match = line.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
+                if (match) {
+                    const identifier = match[1];
+                    let endLine = i;
+                    
+                    // Find the end of the code block
+                    for (let j = i + 1; j < lines.length; j++) {
+                        if (lines[j].trim() === '```') {
+                            endLine = j;
+                            break;
+                        }
+                    }
+                    
+                    this.logger.debug('Found document symbol', { identifier, startLine: i, endLine });
+                    symbols.push(new vscode.DocumentSymbol(
                         identifier,
-                        block
-                    }))
-            );
-
-        log(`Found ${blocks.length} blocks in document`);
-        
-        // Create symbols
-        for (const { identifier, block } of blocks) {
-            const detail = block.language ? `[${block.language}]` : '';
-            symbols.push(new vscode.DocumentSymbol(
-                identifier,
-                detail,
-                vscode.SymbolKind.Class,
-                block.location.range,
-                block.location.range
-            ));
+                        'Code Block',
+                        vscode.SymbolKind.Function,
+                        new vscode.Range(i, 0, endLine, lines[endLine].length),
+                        new vscode.Range(i, 0, i, line.length)
+                    ));
+                }
+            }
         }
         
-        log(`Returning ${symbols.length} symbols`);
         return symbols;
     }
 }
