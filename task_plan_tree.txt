@@ -4,22 +4,37 @@
   - Add reference resolution logic (DONE)
   - Handle circular dependencies (DONE)
 
-- Navigation Provider
-  - Create DocumentSymbolProvider for code block outline
-  - Implement DefinitionProvider
-  - Implement ReferenceProvider
-  - Add hover provider for block information
-  - Handle multi-file navigation
+- Navigation Provider (DONE)
+  - Create DocumentSymbolProvider for code block outline (DONE)
+  - Implement DefinitionProvider (DONE)
+  - Implement ReferenceProvider (DONE)
+  - Add hover provider for block information (DONE)
+  - Handle multi-file navigation (DONE)
 
-- VSCode Integration
-  - Update extension activation events
-  - Implement command handlers
-  - Add document change tracking
-  - Create status bar information
-  - Add error diagnostics for undefined/circular references
+- VSCode Integration (DONE)
+  - Update extension activation events (DONE)
+  - Implement command handlers (DONE)
+  - Add document change tracking (DONE)
+  - Create status bar information (DONE)
+  - Add error diagnostics for undefined/circular references (DONE)
 
 - Testing and Documentation
-  - Add unit tests for core components
-  - Create integration tests
-  - Write documentation
-  - Add example files
+  - Create example markdown files
+  - Add unit tests for:
+    - PandocService
+    - DocumentManager
+    - Navigation Providers
+  - Add integration tests for:
+    - Document parsing
+    - Navigation features
+    - Reference resolution
+  - Write documentation:
+    - Installation guide
+    - Usage examples
+    - API reference
+    - Contributing guidelines
+
+- Future Enhancements
+  - Implement code block folding
+  - Add syntax highlighting for block references
+  - Support for multiple file tangling
