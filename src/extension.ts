@@ -6,6 +6,7 @@ import {
     EntangledHoverProvider,
     EntangledDocumentSymbolProvider
 } from './navigation/providers';
+import { DecorationProvider } from './services/decoration-provider';
 
 // Types
 type DocumentHandler = (document: vscode.TextDocument) => Promise<void>;
@@ -24,7 +25,7 @@ const log = (message: string, error?: Error): void => {
 
 // Document Processing
 const isMarkdownDocument = (document: vscode.TextDocument): boolean =>
-    ['markdown', 'entangled-markdown'].includes(document.languageId);
+    document.languageId === 'entangled-markdown';
 
 const handleDocument: DocumentHandler = async (document: vscode.TextDocument) => {
     if (document.uri.scheme === 'output' || !isMarkdownDocument(document)) {
@@ -34,6 +35,12 @@ const handleDocument: DocumentHandler = async (document: vscode.TextDocument) =>
     try {
         log(`Processing document: ${document.uri}`);
         await DocumentManager.getInstance().parseDocument(document);
+        
+        // Update decorations after document is processed
+        const editor = vscode.window.visibleTextEditors.find(e => e.document === document);
+        if (editor) {
+            DecorationProvider.getInstance().updateDecorations(editor);
+        }
     } catch (error) {
         log(`Error processing document: ${error instanceof Error ? error.message : String(error)}`, 
             error instanceof Error ? error : undefined);
@@ -80,10 +87,8 @@ const createFindReferencesHandler = () => async () => {
 export function activate(context: vscode.ExtensionContext): void {
     log('Activating Entangled VSCode extension');
     
-    const selector: vscode.DocumentSelector = [
-        { language: 'markdown', scheme: 'file' },
-        { language: 'entangled-markdown', scheme: 'file' }
-    ];
+    const decorationProvider = DecorationProvider.getInstance();
+    const selector: vscode.DocumentSelector = { language: 'entangled-markdown', scheme: 'file' };
 
     // Register providers and handlers
     context.subscriptions.push(
@@ -92,14 +97,36 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.languages.registerReferenceProvider(selector, new EntangledReferenceProvider()),
         vscode.languages.registerHoverProvider(selector, new EntangledHoverProvider()),
         vscode.languages.registerDocumentSymbolProvider(selector, new EntangledDocumentSymbolProvider()),
-        vscode.workspace.onDidChangeTextDocument(e => handleDocument(e.document)),
+        vscode.workspace.onDidChangeTextDocument(async e => {
+            await handleDocument(e.document);
+        }),
         vscode.workspace.onDidOpenTextDocument(handleDocument),
         vscode.commands.registerCommand('entangled-vscode.goToDefinition', createGoToDefinitionHandler()),
         vscode.commands.registerCommand('entangled-vscode.findReferences', createFindReferencesHandler())
     );
 
-    // Process active document if it exists
+    // Update decorations when active editor changes
+    vscode.window.onDidChangeActiveTextEditor(async editor => {
+        if (editor && isMarkdownDocument(editor.document)) {
+            await handleDocument(editor.document);
+        }
+    }, null, context.subscriptions);
+
+    // Update decorations when document changes
+    vscode.workspace.onDidChangeTextDocument(event => {
+        const editor = vscode.window.activeTextEditor;
+        if (editor && event.document === editor.document) {
+            decorationProvider.updateDecorations(editor);
+        }
+    }, null, context.subscriptions);
+
+    // Initial decoration for active editor
     if (vscode.window.activeTextEditor) {
+        decorationProvider.updateDecorations(vscode.window.activeTextEditor);
+    }
+
+    // Process active document if it exists
+    if (vscode.window.activeTextEditor && isMarkdownDocument(vscode.window.activeTextEditor.document)) {
         handleDocument(vscode.window.activeTextEditor.document);
     }
 

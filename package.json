@@ -18,6 +18,16 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "entangled-markdown",
+        "scopeName": "text.markdown.entangled",
+        "path": "./syntaxes/entangled-markdown.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.generic": "markdown"
+        }
+      }
+    ],
     "commands": [
       {
         "command": "entangled-vscode.goToDefinition",
@@ -26,6 +36,80 @@
       {
         "command": "entangled-vscode.findReferences",
         "title": "Find References"
+      }
+    ],
+    "colors": [
+      {
+        "id": "entangled.definition.background",
+        "description": "Background color for code block definitions",
+        "defaults": {
+          "dark": "#2d4a4d",
+          "light": "#e3f2f2",
+          "highContrast": "#153e3e"
+        }
+      },
+      {
+        "id": "entangled.definition.foreground",
+        "description": "Text color for code block definitions",
+        "defaults": {
+          "dark": "#4ec9b0",
+          "light": "#267f6b",
+          "highContrast": "#60d4ba"
+        }
+      },
+      {
+        "id": "entangled.continuation.background",
+        "description": "Background color for code block continuations",
+        "defaults": {
+          "dark": "#2d3d4a",
+          "light": "#e3eaf2",
+          "highContrast": "#153e3e"
+        }
+      },
+      {
+        "id": "entangled.continuation.foreground",
+        "description": "Text color for code block continuations",
+        "defaults": {
+          "dark": "#569cd6",
+          "light": "#2b5589",
+          "highContrast": "#60acd6"
+        }
+      },
+      {
+        "id": "entangled.inBlockRef.background",
+        "description": "Background color for references inside code blocks",
+        "defaults": {
+          "dark": "#4a2d4a",
+          "light": "#f2e3f2",
+          "highContrast": "#3e153e"
+        }
+      },
+      {
+        "id": "entangled.inBlockRef.foreground",
+        "description": "Text color for references inside code blocks",
+        "defaults": {
+          "dark": "#c586c0",
+          "light": "#8c4b87",
+          "highContrast": "#d660d1"
+        }
+      },
+      {
+        "id": "entangled.outBlockRef.background",
+        "description": "Background color for references outside code blocks",
+        "defaults": {
+          "dark": "#4a4a2d",
+          "light": "#f2f2e3",
+          "highContrast": "#3e3e15"
+        }
+      },
+      {
+        "id": "entangled.outBlockRef.foreground",
+        "description": "Text color for references outside code blocks",
+        "defaults": {
+          "dark": "#d7ba7d",
+          "light": "#996a2b",
+          "highContrast": "#d6c060"
+        }
       }
     ]
   },
