@@ -4,9 +4,11 @@ import { DocumentBlock, DocumentMap, FileMap, CircularReference, CodeBlockLocati
 import { PandocService } from '../pandoc/service';
 import { log } from '../extension';
 
-// Get the output channel from extension
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
 
+/**
+ * Manages document parsing, code block tracking, and reference resolution for Entangled Markdown files.
+ */
 export class DocumentManager {
     private static instance: DocumentManager;
     public documents: DocumentMap = {};
@@ -24,68 +26,97 @@ export class DocumentManager {
         return DocumentManager.instance;
     }
 
+    /**
+     * Parses a document and updates the internal document map with code blocks and their relationships.
+     * @throws Error if document parsing or AST conversion fails
+     */
     async parseDocument(document: vscode.TextDocument): Promise<void> {
-        log(`Parsing document: ${document.uri}`);
+        if (!document) {
+            throw new Error('Invalid document provided');
+        }
+
+        const uri = document.uri.toString();
+        log(`Parsing document: ${uri}`);
+
         try {
-            log('Converting document to AST...');
             const ast = await this.pandocService.convertToAST(document);
-            log('AST conversion successful, extracting code blocks...');
             const blocks = this.pandocService.extractCodeBlocks(ast);
             log(`Found ${blocks.length} code blocks in document`);
-            
-            // Clear existing blocks for this document
-            const uri = document.uri.toString();
-            if (this.fileMap[uri]) {
-                log(`Clearing existing blocks for ${uri}`);
-                for (const identifier of this.fileMap[uri]) {
-                    this.documents[identifier] = this.documents[identifier]?.filter(
-                        block => block.location.uri.toString() !== uri
-                    ) || [];
-                    if (this.documents[identifier].length === 0) {
-                        delete this.documents[identifier];
-                    }
-                }
-            }
-            this.fileMap[uri] = new Set();
 
-            // Add new blocks
-            for (const block of blocks) {
-                const location = this.findBlockLocation(document, block);
-                if (location) {
-                    log(`Found location for block [${block.identifier}]`);
-                    const documentBlock: DocumentBlock = {
-                        ...block,
-                        location,
-                        dependencies: new Set(block.references),
-                        dependents: new Set()
-                    };
-                    
-                    if (!this.documents[block.identifier]) {
-                        this.documents[block.identifier] = [];
-                    }
-                    this.documents[block.identifier].push(documentBlock);
-                    this.fileMap[uri].add(block.identifier);
-                    log(`Added block [${block.identifier}] to documents`);
-                } else {
-                    log(`Could not find location for block [${block.identifier}]`);
-                }
-            }
-
-            // Update dependencies
+            await this.updateDocumentBlocks(uri, document, blocks);
             this.updateDependencies();
+
             log(`Document parsing completed. Total blocks: ${Object.keys(this.documents).length}`);
             log(`Blocks in current file: ${Array.from(this.fileMap[uri] || []).join(', ')}`);
         } catch (error) {
-            log(`Error parsing document: ${error}`);
-            if (error instanceof Error) {
-                log(`Error stack: ${error.stack}`);
-            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            log(`Error parsing document: ${errorMessage}`);
             throw error;
         }
     }
 
+    /**
+     * Updates document blocks for a given URI, handling existing block cleanup and new block addition.
+     */
+    private async updateDocumentBlocks(uri: string, document: vscode.TextDocument, blocks: PandocCodeBlock[]): Promise<void> {
+        // Clear existing blocks
+        this.clearDocumentBlocks(uri);
+
+        // Add new blocks
+        for (const block of blocks) {
+            const location = this.findBlockLocation(document, block);
+            if (!location) {
+                log(`Could not find location for block [${block.identifier}]`);
+                continue;
+            }
+
+            this.addDocumentBlock(uri, block, location);
+        }
+    }
+
+    /**
+     * Clears existing blocks for a given URI from the document map.
+     */
+    private clearDocumentBlocks(uri: string): void {
+        if (!this.fileMap[uri]) {
+            this.fileMap[uri] = new Set();
+            return;
+        }
+
+        for (const identifier of this.fileMap[uri]) {
+            this.documents[identifier] = this.documents[identifier]?.filter(
+                block => block.location.uri.toString() !== uri
+            ) || [];
+
+            if (this.documents[identifier].length === 0) {
+                delete this.documents[identifier];
+            }
+        }
+        this.fileMap[uri].clear();
+    }
+
+    /**
+     * Adds a new document block to the document map.
+     */
+    private addDocumentBlock(uri: string, block: PandocCodeBlock, location: CodeBlockLocation): void {
+        const documentBlock: DocumentBlock = {
+            ...block,
+            location,
+            dependencies: new Set(block.references),
+            dependents: new Set()
+        };
+
+        if (!this.documents[block.identifier]) {
+            this.documents[block.identifier] = [];
+        }
+        this.documents[block.identifier].push(documentBlock);
+        this.fileMap[uri].add(block.identifier);
+    }
+
+    /**
+     * Finds the location of a code block within a document.
+     */
     private findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
-        log(`Finding location for block: [${block.identifier}]`);
         const text = document.getText();
         const lines = text.split('\n');
         let inCodeBlock = false;
@@ -93,41 +124,31 @@ export class DocumentManager {
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            // log(`Checking line ${i}: ${line}`);
             
             if (line.startsWith('```')) {
                 if (!inCodeBlock) {
-                    // Check for both formats: {.lang #id} and {#id .lang}
                     const match = line.match(/^```\s*\{([^}]*)\}/);
-                    if (match) {
+                    if (match?.length) {
                         const attributes = match[1];
-                        log(`Found code block start with attributes: ${attributes}`);
-                        // Look for #identifier in attributes
                         const idMatch = attributes.match(/#([^\s}]+)/);
-                        if (idMatch && idMatch[1] === block.identifier) {
-                            log(`Found matching block: [${block.identifier}]`);
+                        if (idMatch?.[1] === block.identifier) {
                             startLine = i;
                             inCodeBlock = true;
                         }
                     }
-                } else {
-                    if (startLine !== -1) {
-                        // We found the end of our block
-                        log(`Found end of block [${block.identifier}] at line ${i}`);
-                        return {
-                            uri: document.uri,
-                            range: new vscode.Range(
-                                new vscode.Position(startLine, 0),
-                                new vscode.Position(i, lines[i].length)
-                            ),
-                            identifier: block.identifier
-                        };
-                    }
-                    inCodeBlock = false;
+                } else if (startLine !== -1) {
+                    return {
+                        uri: document.uri,
+                        range: new vscode.Range(
+                            new vscode.Position(startLine, 0),
+                            new vscode.Position(i, lines[i].length)
+                        ),
+                        identifier: block.identifier
+                    };
                 }
+                inCodeBlock = !inCodeBlock;
             }
         }
-        // log(`No location found for block: [${block.identifier}]`);
         return null;
     }
 
@@ -155,6 +176,8 @@ export class DocumentManager {
     }
 
     findDefinition(identifier: string): vscode.Location[] {
+        if (!identifier) return [];
+        
         const blocks = this.documents[identifier];
         if (!blocks) return [];
         
@@ -165,10 +188,12 @@ export class DocumentManager {
     }
 
     findReferences(identifier: string): vscode.Location[] {
+        if (!identifier) return [];
+
         const locations: vscode.Location[] = [];
+        const blocks = this.documents[identifier];
         
         // Add definitions
-        const blocks = this.documents[identifier];
         if (blocks) {
             locations.push(...blocks.map(block => 
                 new vscode.Location(block.location.uri, block.location.range)
@@ -176,21 +201,10 @@ export class DocumentManager {
         }
 
         // Add references from other blocks
-        for (const [_, blockList] of Object.entries(this.documents)) {
+        for (const blockList of Object.values(this.documents)) {
             for (const block of blockList) {
                 if (block.dependencies.has(identifier)) {
-                    // Find the exact position of the reference in the block
-                    const reference = `<<${identifier}>>`;
-                    const content = block.content;
-                    const index = content.indexOf(reference);
-                    if (index !== -1) {
-                        const position = block.location.range.start.translate(0, index);
-                        const range = new vscode.Range(
-                            position,
-                            position.translate(0, reference.length)
-                        );
-                        locations.push(new vscode.Location(block.location.uri, range));
-                    }
+                    this.addReferenceLocation(block, identifier, locations);
                 }
             }
         }
@@ -198,45 +212,68 @@ export class DocumentManager {
         return locations;
     }
 
+    private addReferenceLocation(block: DocumentBlock, identifier: string, locations: vscode.Location[]): void {
+        const reference = `<<${identifier}>>`;
+        const index = block.content.indexOf(reference);
+        
+        if (index !== -1) {
+            const position = block.location.range.start.translate(0, index);
+            const range = new vscode.Range(
+                position,
+                position.translate(0, reference.length)
+            );
+            locations.push(new vscode.Location(block.location.uri, range));
+        }
+    }
+
     findCircularReferences(): CircularReference[] {
         const circular: CircularReference[] = [];
         const visited = new Set<string>();
         const path: string[] = [];
 
-        const dfs = (identifier: string) => {
-            if (path.includes(identifier)) {
-                const start = path.indexOf(identifier);
-                circular.push({
-                    path: path.slice(start),
-                    start: identifier
-                });
-                return;
-            }
-
-            if (visited.has(identifier)) return;
-            visited.add(identifier);
-            path.push(identifier);
-
-            const block = this.documents[identifier]?.[0];
-            if (block) {
-                for (const dep of block.dependencies) {
-                    dfs(dep);
-                }
-            }
-
-            path.pop();
-        };
-
         for (const identifier of Object.keys(this.documents)) {
-            dfs(identifier);
+            this.dfs(identifier, visited, path, circular);
         }
 
         return circular;
     }
 
+    private dfs(
+        identifier: string,
+        visited: Set<string>,
+        path: string[],
+        circular: CircularReference[]
+    ): void {
+        if (path.includes(identifier)) {
+            const start = path.indexOf(identifier);
+            circular.push({
+                path: path.slice(start),
+                start: identifier
+            });
+            return;
+        }
+
+        if (visited.has(identifier)) return;
+        
+        visited.add(identifier);
+        path.push(identifier);
+
+        const block = this.documents[identifier]?.[0];
+        if (block) {
+            for (const dep of block.dependencies) {
+                this.dfs(dep, visited, path, circular);
+            }
+        }
+
+        path.pop();
+        visited.delete(identifier);
+    }
+
     getExpandedContent(identifier: string): string {
+        if (!identifier) return '';
+
         const blocks = this.documents[identifier];
-        if (!blocks || blocks.length === 0) return '';
+        if (!blocks?.length) return '';
 
         const block = blocks[0];
         if (block.expandedContent !== undefined) {
@@ -244,27 +281,29 @@ export class DocumentManager {
         }
 
         const visited = new Set<string>();
-        const expand = (id: string): string => {
-            if (visited.has(id)) return `<<${id}>> (circular reference)`;
-            visited.add(id);
-
-            const currentBlocks = this.documents[id];
-            if (!currentBlocks || currentBlocks.length === 0) {
-                return `<<${id}>> (undefined)`;
-            }
-
-            let content = currentBlocks[0].content;
-            for (const ref of currentBlocks[0].dependencies) {
-                const refContent = expand(ref);
-                content = content.replace(new RegExp(`<<${ref}>>`, 'g'), refContent);
-            }
-
-            visited.delete(id);
-            return content;
-        };
-
-        block.expandedContent = expand(identifier);
+        block.expandedContent = this.expand(identifier, visited);
         return block.expandedContent;
+    }
+
+    private expand(id: string, visited: Set<string>): string {
+        if (visited.has(id)) {
+            return `<<${id}>> (circular reference)`;
+        }
+        visited.add(id);
+
+        const currentBlocks = this.documents[id];
+        if (!currentBlocks?.length) {
+            return `<<${id}>> (undefined)`;
+        }
+
+        let content = currentBlocks[0].content;
+        for (const ref of currentBlocks[0].dependencies) {
+            const refContent = this.expand(ref, visited);
+            content = content.replace(new RegExp(`<<${ref}>>`, 'g'), refContent);
+        }
+
+        visited.delete(id);
+        return content;
     }
 
     clearCache(): void {

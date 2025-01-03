@@ -1,16 +1,20 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as path from 'path';
+import * as os from 'os';
 import { PandocAST, PandocCodeBlock, PandocASTNode } from './types';
 import { log } from '../extension';
 
 const execAsync = promisify(exec);
 
-// Get the output channel from extension
-const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
-
+/**
+ * Service for interacting with Pandoc to convert Markdown to AST and extract code blocks.
+ */
 export class PandocService {
     private static instance: PandocService;
+    private static readonly TEMP_FILE_PREFIX = 'entangled-';
+    private static readonly TEMP_FILE_SUFFIX = '.md';
 
     private constructor() {}
 
@@ -21,127 +25,210 @@ export class PandocService {
         return PandocService.instance;
     }
 
+    /**
+     * Converts a markdown document to Pandoc AST format.
+     * @throws Error if pandoc command fails or AST parsing fails
+     */
     async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
+        if (!document) {
+            throw new Error('Invalid document provided');
+        }
+
         let tmpFile: string | null = null;
         try {
-            log('Converting document to AST...');
             const text = document.getText();
-            log(`Document content length: ${text.length} characters`);
-            
-            // Write content to a temporary file
-            tmpFile = await this.writeToTempFile(text);
-            log(`Created temporary file: ${tmpFile}`);
-            
-            const command = `pandoc -f markdown -t json "${tmpFile}"`;
-            log(`Executing pandoc command: ${command}`);
-            
-            const { stdout, stderr } = await execAsync(command);
-            if (stderr) {
-                log(`Pandoc stderr: ${stderr}`);
+            if (!text) {
+                throw new Error('Document is empty');
             }
-            log(`Pandoc output received, length: ${stdout.length}`);
-            
-            try {
-                const ast = JSON.parse(stdout);
-                log('Successfully parsed AST');
-                return ast;
-            } catch (parseError) {
-                log(`Failed to parse AST: ${parseError}`);
-                log(`Raw output (first 200 chars): ${stdout.substring(0, 200)}...`);
-                throw parseError;
-            }
-        } catch (error) {
-            log(`Error in convertToAST: ${error}`);
-            if (error instanceof Error) {
-                log(`Error stack: ${error.stack}`);
-            }
-            throw error;
+
+            tmpFile = await this.createTempFile(text);
+            const ast = await this.executePandocCommand(tmpFile);
+            return this.validateAST(ast);
         } finally {
-            // Clean up temporary file
-            if (tmpFile) {
-                try {
-                    await vscode.workspace.fs.delete(vscode.Uri.file(tmpFile));
-                    log(`Cleaned up temporary file: ${tmpFile}`);
-                } catch (error) {
-                    log(`Failed to clean up temporary file: ${error}`);
-                }
-            }
+            await this.cleanupTempFile(tmpFile);
         }
     }
 
-    private async writeToTempFile(content: string): Promise<string> {
-        const tmpDir = '/tmp';
-        const tmpFile = `${tmpDir}/entangled-${Date.now()}.md`;
-        log(`Writing content to temporary file: ${tmpFile}`);
+    /**
+     * Creates a temporary file with the given content.
+     * @throws Error if file creation fails
+     */
+    private async createTempFile(content: string): Promise<string> {
+        const tmpDir = os.tmpdir();
+        const tmpFile = path.join(
+            tmpDir,
+            `${PandocService.TEMP_FILE_PREFIX}${Date.now()}${PandocService.TEMP_FILE_SUFFIX}`
+        );
+
         try {
             await vscode.workspace.fs.writeFile(
                 vscode.Uri.file(tmpFile),
                 Buffer.from(content, 'utf8')
             );
-            log('Successfully wrote content to temporary file');
+            log(`Created temporary file: ${tmpFile}`);
             return tmpFile;
         } catch (error) {
-            log(`Failed to write temporary file: ${error}`);
-            throw error;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to create temporary file: ${errorMessage}`);
         }
     }
 
-    extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
-        log('Extracting code blocks from AST...');
-        const codeBlocks: PandocCodeBlock[] = [];
-        
-        const processNode = (node: PandocASTNode) => {
-            if (node.t === 'CodeBlock') {
-                // log(`Found code block node: ${JSON.stringify(node, null, 2)}`);
-                const [[identifier, classes, attrs], content] = node.c;
-                
-                // Extract language from first class
-                const language = classes[0] || '';
-                
-                // Parse noweb references from the content
-                const references = this.extractNowebReferences(content);
-                log(`Code block class: ${classes.join(', ')} details: identifier=${identifier}, language=${language}, references=${references.join(', ')}`);
-                
-                // Extract filename if present in attributes
-                const fileAttr = attrs.find(([key]: string[]) => key === 'file');
-                const fileName = fileAttr ? fileAttr[1] : undefined;
-
-                codeBlocks.push({
-                    identifier,
-                    language,
-                    content,
-                    references,
-                    lineNumber: -1,
-                    fileName
-                });
+    /**
+     * Executes pandoc command on the given file and returns parsed AST.
+     * @throws Error if pandoc command fails or output parsing fails
+     */
+    private async executePandocCommand(filePath: string): Promise<PandocAST> {
+        const command = `pandoc -f markdown -t json "${filePath}"`;
+        try {
+            const { stdout, stderr } = await execAsync(command);
+            if (stderr) {
+                log(`Pandoc warning: ${stderr}`);
             }
-        };
 
-        this.traverseAST(ast, processNode);
-        log(`Found ${codeBlocks.length} code blocks`);
+            try {
+                return JSON.parse(stdout);
+            } catch (parseError) {
+                throw new Error(`Failed to parse pandoc output: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+            }
+        } catch (error) {
+            throw new Error(`Pandoc command failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Validates the AST structure.
+     * @throws Error if AST is invalid
+     */
+    private validateAST(ast: any): PandocAST {
+        if (!ast || typeof ast !== 'object') {
+            throw new Error('Invalid AST: not an object');
+        }
+        if (!Array.isArray(ast.blocks)) {
+            throw new Error('Invalid AST: missing blocks array');
+        }
+        if (ast.meta && typeof ast.meta !== 'object') {
+            throw new Error('Invalid AST: meta field is not an object');
+        }
+        if (ast.pandoc_version && !Array.isArray(ast.pandoc_version)) {
+            throw new Error('Invalid AST: pandoc_version is not an array');
+        }
+        return ast;
+    }
+
+    /**
+     * Cleans up the temporary file.
+     */
+    private async cleanupTempFile(tmpFile: string | null): Promise<void> {
+        if (tmpFile) {
+            try {
+                await vscode.workspace.fs.delete(vscode.Uri.file(tmpFile));
+                log(`Cleaned up temporary file: ${tmpFile}`);
+            } catch (error) {
+                log(`Warning: Failed to clean up temporary file ${tmpFile}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+    }
+
+    /**
+     * Extracts code blocks from a Pandoc AST.
+     */
+    extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
+        if (!ast || !Array.isArray(ast.blocks)) {
+            return [];
+        }
+
+        const codeBlocks: PandocCodeBlock[] = [];
+        this.traverseAST(ast, (node) => {
+            if (this.isCodeBlockNode(node)) {
+                const block = this.parseCodeBlock(node);
+                if (block) {
+                    codeBlocks.push(block);
+                }
+            }
+        });
+
+        log(`Extracted ${codeBlocks.length} code blocks`);
         return codeBlocks;
     }
 
+    /**
+     * Type guard for code block nodes.
+     */
+    private isCodeBlockNode(node: PandocASTNode): boolean {
+        return node.t === 'CodeBlock' && 
+               Array.isArray(node.c) && 
+               node.c.length === 2 &&
+               Array.isArray(node.c[0]) &&
+               typeof node.c[1] === 'string';
+    }
+
+    /**
+     * Parses a code block node into a PandocCodeBlock.
+     */
+    private parseCodeBlock(node: PandocASTNode): PandocCodeBlock | null {
+        try {
+            const [[identifier, classes, attrs], content] = node.c;
+            
+            if (typeof identifier !== 'string' || !Array.isArray(classes) || !Array.isArray(attrs)) {
+                return null;
+            }
+
+            const language = classes[0] || '';
+            const references = this.extractNowebReferences(content);
+            const fileAttr = attrs.find(([key]: string[]) => key === 'file');
+            const fileName = fileAttr?.[1];
+
+            return {
+                identifier,
+                language,
+                content,
+                references,
+                lineNumber: -1,
+                fileName
+            };
+        } catch (error) {
+            log(`Warning: Failed to parse code block: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Extracts noweb references from code block content.
+     */
     private extractNowebReferences(content: string): string[] {
-        const references: string[] = [];
+        if (!content) {
+            return [];
+        }
+
+        const references = new Set<string>();
         const regex = /<<([^>]+)>>/g;
         let match;
         
         while ((match = regex.exec(content)) !== null) {
-            references.push(match[1].trim());
+            const reference = match[1]?.trim();
+            if (reference) {
+                references.add(reference);
+            }
         }
         
-        return references;
+        return Array.from(references);
     }
 
-    private traverseAST(ast: PandocAST | PandocASTNode, callback: (node: PandocASTNode) => void) {
-        if ('blocks' in ast) {
+    /**
+     * Traverses the AST and calls the callback for each node.
+     */
+    private traverseAST(ast: PandocAST | PandocASTNode, callback: (node: PandocASTNode) => void): void {
+        if (!ast) {
+            return;
+        }
+
+        if ('blocks' in ast && Array.isArray(ast.blocks)) {
             ast.blocks.forEach(block => this.traverseAST(block, callback));
-        } else if (Array.isArray(ast.c)) {
+        } else if ('t' in ast && 't' in ast && Array.isArray(ast.c)) {
             callback(ast);
             ast.c.forEach(child => {
-                if (typeof child === 'object' && child !== null) {
-                    this.traverseAST(child, callback);
+                if (child && typeof child === 'object') {
+                    this.traverseAST(child as PandocASTNode, callback);
                 }
             });
         }
