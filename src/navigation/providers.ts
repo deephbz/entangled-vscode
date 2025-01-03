@@ -1,58 +1,66 @@
 import * as vscode from 'vscode';
-import { DocumentManager } from '../document/manager';
+import { EntangledProcessor } from '../core/processor';
 import { log } from '../extension';
 
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
 
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
-    private documentManager: DocumentManager;
+    constructor(private processor: EntangledProcessor) {}
 
-    constructor() {
-        this.documentManager = DocumentManager.getInstance();
-    }
-
-    provideDefinition(
+    async provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.Definition> {
+    ): Promise<vscode.Definition | undefined> {
+        const parsedDoc = await this.processor.getParsedDocument(document.uri.toString());
+        if (!parsedDoc) {
+            return undefined;
+        }
+
+        // Check if we're in a noweb reference
         const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
-        if (!range) return null;
+        if (!range) {
+            return undefined;
+        }
 
         const text = document.getText(range);
-        const identifier = text.substring(2, text.length - 2); // Remove << and >>
-        return this.documentManager.findDefinition(identifier);
+        const identifier = text.substring(2, text.length - 2).trim();
+        
+        const blocks = parsedDoc.references.get(identifier);
+        return blocks?.[0]?.location;
     }
 }
 
 export class EntangledReferenceProvider implements vscode.ReferenceProvider {
-    private documentManager: DocumentManager;
+    constructor(private processor: EntangledProcessor) {}
 
-    constructor() {
-        this.documentManager = DocumentManager.getInstance();
-    }
-
-    provideReferences(
+    async provideReferences(
         document: vscode.TextDocument,
         position: vscode.Position,
         context: vscode.ReferenceContext,
         token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.Location[]> {
+    ): Promise<vscode.Location[]> {
+        const parsedDoc = await this.processor.getParsedDocument(document.uri.toString());
+        if (!parsedDoc) {
+            return [];
+        }
+
         // Check if we're in a code block identifier
-        const lineText = document.lineAt(position.line).text;
-        // Match both standard code blocks with {.lang #id} and file blocks with {.lang file=path}
-        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
+        const line = document.lineAt(position.line).text;
+        const codeBlockMatch = line.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
         if (codeBlockMatch) {
             const identifier = codeBlockMatch[1];
-            return this.documentManager.findReferences(identifier);
+            return Array.from(parsedDoc.references.get(identifier) || [])
+                .map(block => block.location);
         }
 
         // Check if we're in a noweb reference
         const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
         if (range) {
             const text = document.getText(range);
-            const identifier = text.substring(2, text.length - 2);
-            return this.documentManager.findReferences(identifier);
+            const identifier = text.substring(2, text.length - 2).trim();
+            return Array.from(parsedDoc.references.get(identifier) || [])
+                .map(block => block.location);
         }
 
         return [];
@@ -60,79 +68,67 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
 }
 
 export class EntangledHoverProvider implements vscode.HoverProvider {
-    private documentManager: DocumentManager;
+    constructor(private processor: EntangledProcessor) {}
 
-    constructor() {
-        this.documentManager = DocumentManager.getInstance();
-    }
-
-    provideHover(
+    async provideHover(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.Hover> {
-        // Check for code block identifier
-        const lineText = document.lineAt(position.line).text;
-        const codeBlockMatch = lineText.match(/^```\s*\{[^}]*#([^}\s]+)[^}]*\}/);
-        if (codeBlockMatch) {
-            const identifier = codeBlockMatch[1];
-            const content = this.documentManager.getExpandedContent(identifier);
-            return new vscode.Hover([
-                new vscode.MarkdownString('**Code Block Definition**'),
-                new vscode.MarkdownString('```' + content + '```')
-            ]);
+    ): Promise<vscode.Hover | undefined> {
+        const parsedDoc = await this.processor.getParsedDocument(document.uri.toString());
+        if (!parsedDoc) {
+            return undefined;
         }
 
-        // Check for noweb reference
+        // Check if we're in a noweb reference
         const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
         if (range) {
             const text = document.getText(range);
-            const identifier = text.substring(2, text.length - 2);
-            const content = this.documentManager.getExpandedContent(identifier);
-            return new vscode.Hover([
-                new vscode.MarkdownString('**Referenced Code Block**'),
-                new vscode.MarkdownString('```' + content + '```')
-            ]);
+            const identifier = text.substring(2, text.length - 2).trim();
+            const blocks = parsedDoc.references.get(identifier);
+            
+            if (blocks && blocks.length > 0) {
+                const block = blocks[0];
+                const content = block.content.trim();
+                return new vscode.Hover([
+                    `**${identifier}** (${block.language})`,
+                    '```' + block.language,
+                    content,
+                    '```'
+                ]);
+            }
         }
 
-        return null;
+        return undefined;
     }
 }
 
 export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-    private documentManager = DocumentManager.getInstance();
+    constructor(private processor: EntangledProcessor) {}
 
     async provideDocumentSymbols(
         document: vscode.TextDocument,
         token: vscode.CancellationToken
     ): Promise<vscode.DocumentSymbol[]> {
-        log('Providing document symbols...');
-        const symbols: vscode.DocumentSymbol[] = [];
-        const uri = document.uri.toString();
-        
-        // Get all blocks in this document from the document manager
-        const documentBlocks = this.documentManager.documents;
-        log(`Found ${Object.keys(documentBlocks).length} total blocks`);
-        
-        // Filter blocks for this document
-        for (const [identifier, blocks] of Object.entries(documentBlocks)) {
-            log(`Processing blocks for identifier: ${identifier}`);
-            for (const block of blocks) {
-                if (block.location.uri.toString() === uri) {
-                    log(`Creating symbol for block: ${identifier}`);
-                    const detail = block.language ? `[${block.language}]` : '';
-                    symbols.push(new vscode.DocumentSymbol(
-                        identifier,
-                        detail,
-                        vscode.SymbolKind.Class,
-                        block.location.range,
-                        block.location.range
-                    ));
-                }
-            }
+        const parsedDoc = await this.processor.getParsedDocument(document.uri.toString());
+        if (!parsedDoc) {
+            return [];
         }
-        
-        log(`Returning ${symbols.length} symbols`);
-        return symbols;
+
+        return parsedDoc.blocks
+            .filter(block => block.type !== 'ignored')
+            .map(block => {
+                const detail = block.type === 'file' ? 
+                    `[${block.language}] ${block.fileName}` : 
+                    `[${block.language}]`;
+                
+                return new vscode.DocumentSymbol(
+                    block.identifier || block.fileName || '',
+                    detail,
+                    vscode.SymbolKind.Class,
+                    block.location.range,
+                    block.location.range
+                );
+            });
     }
 }

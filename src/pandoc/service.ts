@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { PandocAST, PandocCodeBlock, PandocASTNode } from './types';
+import { PandocAST, PandocCodeBlock, PandocASTNode, CodeBlockAttributes, CodeBlockProperty, CodeBlockType } from './types';
 import { log } from '../extension';
 
 const execAsync = promisify(exec);
@@ -86,33 +86,84 @@ export class PandocService {
         }
     }
 
+    private parseCodeBlockProperties(propertiesStr: string): CodeBlockAttributes {
+        const properties: CodeBlockProperty[] = [];
+        const result: CodeBlockAttributes = { properties };
+        
+        // Remove curly braces and split by whitespace, preserving quoted values
+        const matches = propertiesStr.replace(/^\{|\}$/g, '').match(/[^\s"']+|"([^"]*)"|'([^']*)'/g) || [];
+        
+        for (const prop of matches) {
+            if (prop.startsWith('#')) {
+                // Identifier: #name
+                properties.push({
+                    type: 'identifier',
+                    key: prop.slice(1)
+                });
+                result.identifier = prop.slice(1);
+            } else if (prop.startsWith('.')) {
+                // Class: .name
+                properties.push({
+                    type: 'class',
+                    key: prop.slice(1)
+                });
+                // First class is always the language
+                if (!result.language) {
+                    result.language = prop.slice(1);
+                }
+            } else if (prop.includes('=')) {
+                // Key-value: key=value
+                const [key, ...valueParts] = prop.split('=');
+                const value = valueParts.join('=').replace(/^["']|["']$/g, '');
+                properties.push({
+                    type: 'keyValue',
+                    key,
+                    value
+                });
+                if (key === 'file') {
+                    result.fileName = value;
+                }
+            }
+        }
+        
+        return result;
+    }
+
+    private determineBlockType(attrs: CodeBlockAttributes): CodeBlockType {
+        if (attrs.fileName) {
+            return 'file';
+        } else if (attrs.identifier && attrs.language) {
+            return 'referable';
+        }
+        return 'ignored';
+    }
+
     extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
         log('Extracting code blocks from AST...');
         const codeBlocks: PandocCodeBlock[] = [];
         
         const processNode = (node: PandocASTNode) => {
             if (node.t === 'CodeBlock') {
-                // log(`Found code block node: ${JSON.stringify(node, null, 2)}`);
-                const [[identifier, classes, attrs], content] = node.c;
+                const [[identifier, classes, rawAttrs], content] = node.c;
                 
-                // Extract language from first class
-                const language = classes[0] || '';
+                // Parse the full properties string from raw attributes
+                const propertiesStr = rawAttrs.join(' ');
+                const attributes = this.parseCodeBlockProperties(propertiesStr);
+                const type = this.determineBlockType(attributes);
                 
-                // Parse noweb references from the content
-                const references = this.extractNowebReferences(content);
-                log(`Code block class: ${classes.join(', ')} details: identifier=${identifier}, language=${language}, references=${references.join(', ')}`);
+                // Parse noweb references and preserve indentation
+                const { references, indentation } = this.extractNowebReferences(content);
                 
-                // Extract filename if present in attributes
-                const fileAttr = attrs.find(([key]: string[]) => key === 'file');
-                const fileName = fileAttr ? fileAttr[1] : undefined;
-
                 codeBlocks.push({
-                    identifier,
-                    language,
+                    type,
+                    identifier: attributes.identifier || '',
+                    language: attributes.language || '',
                     content,
                     references,
                     lineNumber: -1,
-                    fileName
+                    fileName: attributes.fileName,
+                    indentation,
+                    attributes
                 });
             }
         };
@@ -122,16 +173,25 @@ export class PandocService {
         return codeBlocks;
     }
 
-    private extractNowebReferences(content: string): string[] {
+    private extractNowebReferences(content: string): { references: string[], indentation: string } {
         const references: string[] = [];
-        const regex = /<<([^>]+)>>/g;
-        let match;
+        let indentation = '';
         
-        while ((match = regex.exec(content)) !== null) {
-            references.push(match[1].trim());
+        // Split content into lines and process each line
+        const lines = content.split('\n');
+        for (const line of lines) {
+            const match = line.match(/^(\s*)<<([^>]+)>>\s*$/);
+            if (match) {
+                const [_, indent, ref] = match;
+                references.push(ref);
+                // Store indentation of first reference found
+                if (!indentation) {
+                    indentation = indent;
+                }
+            }
         }
         
-        return references;
+        return { references, indentation };
     }
 
     private traverseAST(ast: PandocAST | PandocASTNode, callback: (node: PandocASTNode) => void) {
