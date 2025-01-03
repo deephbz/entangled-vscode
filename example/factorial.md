@@ -30,5 +30,6 @@ n * factorial(n - 1)  #
 <<factorial-function>>
 
 # Test the function
-print(factorial(5))  # Should print 120
-```
+print(factorial(5))  # Should print 120 
+``` 
+

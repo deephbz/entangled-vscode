@@ -2,16 +2,12 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { PandocAST, PandocCodeBlock, PandocASTNode } from './types';
+import { log } from '../extension';
 
 const execAsync = promisify(exec);
 
 // Get the output channel from extension
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
-
-function log(message: string) {
-    console.log(message);
-    outputChannel.appendLine(message);
-}
 
 export class PandocService {
     private static instance: PandocService;
@@ -26,13 +22,16 @@ export class PandocService {
     }
 
     async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
+        let tmpFile: string | null = null;
         try {
             log('Converting document to AST...');
             const text = document.getText();
-            log(`Document content (first 100 chars): ${text.substring(0, 100)}...`);
+            log(`Document content length: ${text.length} characters`);
             
-            // Write content to a temporary file to avoid command line length limits
-            const tmpFile = await this.writeToTempFile(text);
+            // Write content to a temporary file
+            tmpFile = await this.writeToTempFile(text);
+            log(`Created temporary file: ${tmpFile}`);
+            
             const command = `pandoc -f markdown -t json "${tmpFile}"`;
             log(`Executing pandoc command: ${command}`);
             
@@ -44,27 +43,47 @@ export class PandocService {
             
             try {
                 const ast = JSON.parse(stdout);
-                log('AST parsed successfully');
+                log('Successfully parsed AST');
                 return ast;
             } catch (parseError) {
                 log(`Failed to parse AST: ${parseError}`);
-                log(`Raw output: ${stdout.substring(0, 200)}...`);
+                log(`Raw output (first 200 chars): ${stdout.substring(0, 200)}...`);
                 throw parseError;
             }
         } catch (error) {
-            log(`Failed to convert document to AST: ${error}`);
+            log(`Error in convertToAST: ${error}`);
+            if (error instanceof Error) {
+                log(`Error stack: ${error.stack}`);
+            }
             throw error;
+        } finally {
+            // Clean up temporary file
+            if (tmpFile) {
+                try {
+                    await vscode.workspace.fs.delete(vscode.Uri.file(tmpFile));
+                    log(`Cleaned up temporary file: ${tmpFile}`);
+                } catch (error) {
+                    log(`Failed to clean up temporary file: ${error}`);
+                }
+            }
         }
     }
 
     private async writeToTempFile(content: string): Promise<string> {
         const tmpDir = '/tmp';
         const tmpFile = `${tmpDir}/entangled-${Date.now()}.md`;
-        await vscode.workspace.fs.writeFile(
-            vscode.Uri.file(tmpFile),
-            Buffer.from(content, 'utf8')
-        );
-        return tmpFile;
+        log(`Writing content to temporary file: ${tmpFile}`);
+        try {
+            await vscode.workspace.fs.writeFile(
+                vscode.Uri.file(tmpFile),
+                Buffer.from(content, 'utf8')
+            );
+            log('Successfully wrote content to temporary file');
+            return tmpFile;
+        } catch (error) {
+            log(`Failed to write temporary file: ${error}`);
+            throw error;
+        }
     }
 
     extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {

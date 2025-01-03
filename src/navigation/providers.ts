@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import { DocumentManager } from '../document/manager';
+import { log } from '../extension';
 
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
-
-function log(message: string) {
-    console.log(message);
-    outputChannel.appendLine(message);
-}
 
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     private documentManager: DocumentManager;

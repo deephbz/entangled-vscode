@@ -9,12 +9,13 @@ import {
     EntangledDocumentSymbolProvider
 } from './navigation/providers';
 
-// Create output channel
-const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
+// Create a single shared output channel
+export const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
 
-function log(message: string) {
+export function log(message: string) {
     console.log(message);
-    outputChannel.appendLine(message);
+    outputChannel.appendLine(`[${new Date().toISOString()}] ${message}`);
+    outputChannel.show(true);  // Make sure the output is visible
 }
 
 // This method is called when your extension is activated
@@ -29,6 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register for markdown files
     const selector = { language: 'markdown', scheme: 'file' };
+    log(`Registering language providers for selector: ${JSON.stringify(selector)}`);
 
     // Register providers
     log('Registering language providers...');
@@ -47,14 +49,19 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
             
-            log(`Document changed: ${e.document.uri}`);
+            log(`Document changed: ${e.document.uri} (language: ${e.document.languageId})`);
             if (e.document.languageId === 'markdown') {
                 log('Processing markdown document change');
                 try {
                     await documentManager.parseDocument(e.document);
                 } catch (error) {
                     log(`Error processing document change: ${error}`);
+                    if (error instanceof Error) {
+                        log(`Error stack: ${error.stack}`);
+                    }
                 }
+            } else {
+                log(`Skipping non-markdown document: ${e.document.languageId}`);
             }
         }),
         vscode.workspace.onDidOpenTextDocument(async (document) => {
@@ -63,25 +70,40 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
             
-            log(`Document opened: ${document.uri}`);
+            log(`Document opened: ${document.uri} (language: ${document.languageId})`);
             if (document.languageId === 'markdown') {
                 log('Processing opened markdown document');
                 try {
                     await documentManager.parseDocument(document);
                 } catch (error) {
                     log(`Error processing opened document: ${error}`);
+                    if (error instanceof Error) {
+                        log(`Error stack: ${error.stack}`);
+                    }
                 }
+            } else {
+                log(`Skipping non-markdown document: ${document.languageId}`);
             }
         })
     );
 
     // Process currently active document if it's markdown
     const activeEditor = vscode.window.activeTextEditor;
-    if (activeEditor && activeEditor.document.languageId === 'markdown') {
-        log('Processing active document');
-        documentManager.parseDocument(activeEditor.document).catch(error => {
-            log(`Error processing active document: ${error}`);
-        });
+    if (activeEditor) {
+        log(`Active editor document: ${activeEditor.document.uri} (language: ${activeEditor.document.languageId})`);
+        if (activeEditor.document.languageId === 'markdown') {
+            log('Processing active document');
+            documentManager.parseDocument(activeEditor.document).catch(error => {
+                log(`Error processing active document: ${error}`);
+                if (error instanceof Error) {
+                    log(`Error stack: ${error.stack}`);
+                }
+            });
+        } else {
+            log(`Skipping non-markdown active document: ${activeEditor.document.languageId}`);
+        }
+    } else {
+        log('No active editor found');
     }
 
     // Register commands

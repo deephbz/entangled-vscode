@@ -2,14 +2,10 @@ import * as vscode from 'vscode';
 import { PandocCodeBlock } from '../pandoc/types';
 import { DocumentBlock, DocumentMap, FileMap, CircularReference, CodeBlockLocation } from './types';
 import { PandocService } from '../pandoc/service';
+import { log } from '../extension';
 
 // Get the output channel from extension
 const outputChannel = vscode.window.createOutputChannel('Entangled VSCode');
-
-function log(message: string) {
-    console.log(message);
-    outputChannel.appendLine(message);
-}
 
 export class DocumentManager {
     private static instance: DocumentManager;
@@ -31,7 +27,9 @@ export class DocumentManager {
     async parseDocument(document: vscode.TextDocument): Promise<void> {
         log(`Parsing document: ${document.uri}`);
         try {
+            log('Converting document to AST...');
             const ast = await this.pandocService.convertToAST(document);
+            log('AST conversion successful, extracting code blocks...');
             const blocks = this.pandocService.extractCodeBlocks(ast);
             log(`Found ${blocks.length} code blocks in document`);
             
@@ -67,6 +65,7 @@ export class DocumentManager {
                     }
                     this.documents[block.identifier].push(documentBlock);
                     this.fileMap[uri].add(block.identifier);
+                    log(`Added block ${block.identifier} to documents`);
                 } else {
                     log(`Could not find location for block ${block.identifier}`);
                 }
@@ -74,9 +73,13 @@ export class DocumentManager {
 
             // Update dependencies
             this.updateDependencies();
-            log('Document parsing completed successfully');
+            log(`Document parsing completed. Total blocks: ${Object.keys(this.documents).length}`);
+            log(`Blocks in current file: ${Array.from(this.fileMap[uri] || []).join(', ')}`);
         } catch (error) {
             log(`Error parsing document: ${error}`);
+            if (error instanceof Error) {
+                log(`Error stack: ${error.stack}`);
+            }
             throw error;
         }
     }
