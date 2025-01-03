@@ -14,17 +14,17 @@ export interface CodeBlockAttributes {
     fileName?: string;
 }
 
-export type CodeBlockType = 'referable' | 'file' | 'ignored';
+export type BlockType = 'referable' | 'file' | 'ignored';
 
 // Core code block type
 export interface CodeBlock {
-    type: CodeBlockType;
-    identifier: string;
+    type: BlockType;
+    identifier?: string;
+    fileName?: string;
     language: string;
     content: string;
     references: string[];
     location: vscode.Location;
-    fileName?: string;
     indentation?: string;
     attributes: CodeBlockAttributes;
     expandedContent?: string;
@@ -38,7 +38,7 @@ export interface ParsedDocument {
     blocks: CodeBlock[];
     references: Map<string, CodeBlock[]>;
     fileBlocks: Map<string, CodeBlock>;
-    version: number;
+    lastModified: number;
 }
 
 export interface EntangledState {
@@ -70,4 +70,13 @@ export interface DocumentProcessor {
     parse(document: vscode.TextDocument): Promise<ParsedDocument>;
     getParsedDocument(uri: string): Promise<ParsedDocument | undefined>;
     invalidate(uri: string): void;
+    findReferences(uri: string, identifier: string): CodeBlock[];
+    findDefinition(uri: string, identifier: string): CodeBlock | undefined;
+}
+
+export class ProcessingError extends Error {
+    constructor(message: string, public readonly cause?: Error) {
+        super(message);
+        this.name = 'ProcessingError';
+    }
 }
