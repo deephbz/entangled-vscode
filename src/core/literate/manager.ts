@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './entities';
 import { ILiterateParser, LiterateParser } from './parser';
-import { BlockNotFoundError, CircularDependencyError } from '../../utils/errors';
+import { BlockNotFoundError, DocumentParseError, EntangledError, BlockSyntaxError, CircularReferenceError } from '../../utils/errors';
 import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
@@ -35,28 +35,56 @@ export class LiterateManager implements ILiterateManager {
 
     async parseDocument(document: vscode.TextDocument): Promise<void> {
         const uri = document.uri.toString();
-        this.logger.info('Parsing document', { uri });
+        this.logger.debug('Parsing document', { uri });
         
         try {
             const blocks = await this.extractCodeBlocks(document);
+            
+            if (blocks.length === 0) {
+                this.logger.debug('No code blocks found', { uri });
+                return;
+            }
+            
+            this.logger.debug('Code blocks extracted', { count: blocks.length });
             
             // Clear existing blocks for this document
             this.clearDocumentBlocks(uri);
             
             // Process and add new blocks
-            const processedBlocks = this.parser.parseDocument(document, blocks);
-            this.addDocumentBlocks(uri, processedBlocks);
+            try {
+                const processedBlocks = this.parser.parseDocument(document, blocks);
+                this.logger.debug('Blocks processed', { 
+                    totalBlocks: processedBlocks.length,
+                    withIdentifiers: processedBlocks.filter(b => b.identifier).length
+                });
+                
+                this.addDocumentBlocks(uri, processedBlocks);
+            } catch (error) {
+                throw new DocumentParseError(
+                    error instanceof Error ? error.message : String(error),
+                    uri
+                );
+            }
 
             // Update dependencies
             this.updateDependencies();
             
-            this.logger.info('Document parsing completed', {
-                totalBlocks: Object.keys(this.documents).length,
-                fileBlocks: Array.from(this.fileMap[uri] || [])
-            });
+            // Check for circular references
+            const circular = this.findCircularReferences();
+            if (circular.length > 0) {
+                this.logger.warn('Circular references detected', { 
+                    count: circular.length,
+                    references: circular.map(ref => ref.path)
+                });
+            }
         } catch (error) {
-            this.logger.error('Failed to parse document', error instanceof Error ? error : new Error(String(error)), { uri });
-            throw error;
+            if (error instanceof EntangledError) {
+                throw error;
+            }
+            throw new DocumentParseError(
+                error instanceof Error ? error.message : String(error),
+                uri
+            );
         }
     }
 
@@ -135,39 +163,42 @@ export class LiterateManager implements ILiterateManager {
     }
 
     findDefinition(identifier: string): vscode.Location[] {
-        const blocks = this.documents[identifier];
-        if (!blocks?.length) {
-            this.logger.warn('No definition found for block', { identifier });
-            return [];
+        this.logger.debug('Finding definition', { identifier });
+        
+        const locations = Object.values(this.documents)
+            .flatMap(blocks => blocks)
+            .filter(block => block.identifier === identifier)
+            .map(block => new vscode.Location(block.location.uri, block.location.range));
+
+        if (locations.length === 0) {
+            this.logger.debug('No definitions found', { identifier });
+        } else {
+            this.logger.debug('Definitions found', { 
+                identifier, 
+                count: locations.length,
+                locations: locations.map(loc => loc.uri.toString())
+            });
         }
 
-        return blocks.map(block => new vscode.Location(block.location.uri, block.location.range));
+        return locations;
     }
 
     findReferences(identifier: string): vscode.Location[] {
-        const blocks = this.documents[identifier];
-        if (!blocks?.length) {
-            this.logger.warn('No references found for block', { identifier });
-            return [];
-        }
-
-        const locations: vscode.Location[] = [];
+        this.logger.debug('Finding references', { identifier });
         
-        // Add all reference ranges from all blocks
-        for (const block of blocks) {
-            for (const range of block.referenceRanges) {
-                locations.push(new vscode.Location(block.location.uri, range));
-            }
-        }
+        const locations = Object.values(this.documents)
+            .flatMap(blocks => blocks)
+            .filter(block => block.dependencies.has(identifier))
+            .map(block => new vscode.Location(block.location.uri, block.location.range));
 
-        // Add all blocks that reference this identifier
-        for (const block of blocks) {
-            for (const dependent of block.dependents) {
-                const depBlocks = this.documents[dependent];
-                if (depBlocks) {
-                    locations.push(...depBlocks.map(b => new vscode.Location(b.location.uri, b.location.range)));
-                }
-            }
+        if (locations.length === 0) {
+            this.logger.debug('No references found', { identifier });
+        } else {
+            this.logger.debug('References found', { 
+                identifier, 
+                count: locations.length,
+                locations: locations.map(loc => loc.uri.toString())
+            });
         }
 
         return locations;
@@ -223,17 +254,26 @@ export class LiterateManager implements ILiterateManager {
     }
 
     getExpandedContent(identifier: string): string {
+        this.logger.debug('Getting expanded content', { identifier });
+        
         const blocks = this.documents[identifier];
         if (!blocks?.length) {
             throw new BlockNotFoundError(identifier);
         }
 
-        const cycles = this.findCircularReferences();
-        if (cycles.length > 0) {
-            throw new CircularDependencyError(cycles[0].path);
+        try {
+            const content = this.expand(identifier);
+            this.logger.debug('Content expanded successfully', { identifier });
+            return content;
+        } catch (error) {
+            if (error instanceof CircularReferenceError) {
+                throw error;
+            }
+            throw new BlockSyntaxError(
+                error instanceof Error ? error.message : String(error),
+                identifier
+            );
         }
-
-        return this.expand(identifier);
     }
 
     private expand(id: string, visited: Set<string> = new Set()): string {
