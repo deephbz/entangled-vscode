@@ -36,3 +36,106 @@
     - Custom language support
     - Enhanced error detection
     - Additional markup syntax support
+
+- Codebase Restructuring Plan
+
+## Phase 1: Setup New Structure
+- Create new directory structure
+  1. Create /src/core directory
+  2. Create /src/editor directory
+  3. Create /src/config directory
+  4. Create /src/utils directory
+
+## Phase 2: Move Utilities (Minimal Dependencies)
+- Move and refactor logging
+  1. Move logger.ts to /src/utils/
+  2. Update imports in affected files
+  3. Test compilation
+
+- Setup centralized config
+  1. Create /src/config/defaults.ts
+  2. Create /src/config/settings.ts
+  3. Move configuration from various files
+  4. Update imports
+  5. Test compilation
+
+## Phase 3: Core Domain Logic
+- Setup core literate programming types
+  1. Create /src/core/literate/entities.ts
+  2. Move types from document/types.ts
+  3. Update imports
+  4. Test compilation
+
+- Move Pandoc integration
+  1. Move pandoc directory to /src/core/pandoc/
+  2. Update imports
+  3. Test compilation
+
+- Setup parser interface
+  1. Create /src/core/literate/parser.ts
+  2. Extract parser logic from document/processor.ts
+  3. Update imports
+  4. Test compilation
+
+- Move core management logic
+  1. Create /src/core/literate/manager.ts
+  2. Move core logic from document/manager.ts
+  3. Move dependency management from dependency-manager.ts
+  4. Update imports
+  5. Test compilation
+
+## Phase 4: Editor Integration
+- Setup editor providers
+  1. Create /src/editor/providers/navigation.ts
+  2. Move navigation providers from navigation/providers.ts
+  3. Update imports
+  4. Test compilation
+
+- Move decoration provider
+  1. Create /src/editor/providers/decoration.ts
+  2. Move from services/decoration-provider.ts
+  3. Update imports
+  4. Test compilation
+
+- Setup editor commands
+  1. Create /src/editor/commands.ts
+  2. Extract command handlers from extension.ts
+  3. Update imports
+  4. Test compilation
+
+- Setup activation logic
+  1. Create /src/editor/activation.ts
+  2. Extract activation logic from extension.ts
+  3. Update imports
+  4. Test compilation
+
+## Phase 5: Clean Up
+- Update extension entry point
+  1. Refactor extension.ts to use new structure
+  2. Test compilation
+  3. Verify all features still work
+
+- Remove old directories
+  1. Remove /src/document after verifying all code moved
+  2. Remove /src/navigation after verifying all code moved
+  3. Remove /src/services after verifying all code moved
+  4. Test compilation
+
+## Phase 6: Documentation Update
+- Update documentation to reflect new structure
+  1. Update README.md
+  2. Update DESIGN.md
+  3. Update comments in key files
+
+## Testing Checkpoints
+After each step:
+1. Run `npm run compile`
+2. Fix any compilation errors
+3. Verify no functionality is broken
+4. Commit working changes
+
+## Rollback Plan
+For each phase:
+1. Keep old files until new structure is verified
+2. Maintain git commits per logical change
+3. Ready to rollback to last working state if needed
