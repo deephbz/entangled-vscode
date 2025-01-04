@@ -3,6 +3,12 @@
   "displayName": "Entangled VSCode",
   "description": "Navigation and visual aid for Entangled Literate Programming",
   "version": "0.0.1",
+  "publisher": "EntangleD-VSCode",
+  "license": "LGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deephbz/entangled-vscode"
+  },
   "engines": {
     "vscode": "^1.94.0"
   },
