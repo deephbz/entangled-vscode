@@ -1,71 +1,83 @@
-# entangled-vscode README
+# EntangleD for Visual Studio Code
 
-This is the README for your extension "entangled-vscode". After writing up a brief description, we recommend including the following sections.
+Transform your documentation into living code with EntangleD, a powerful literate programming extension for VSCode. Write your code inside Markdown files and get full IDE support including code navigation, symbol lookup, and real-time previews.
 
-## Features
+## ✨ Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### 🔍 Smart Code Navigation
+- **Jump to Definition**: Click through noweb references (`<<reference>>`) to instantly navigate to their definitions
+- **Find All References**: Quickly find all usages of a code block across your documentation
+- **Symbol Outline**: View and navigate all code blocks in your document through VSCode's Outline window
+- **Rich Hover Information**: See the actual code content when hovering over references
 
-For example if there is an image subfolder under your extension project workspace:
+### 📝 Markdown Integration
+- **Native Support**: Works with standard Markdown files - no special file extensions needed
+- **Code Block Recognition**: Automatically detects and processes EntangleD code blocks:
+  ```markdown
+  ``` {.python #hello-world}
+  print("Hello, World!")
+  ```
 
-\!\[feature X\]\(images/feature-x.png\)
+### 🎯 Designed for Literate Programming
+- **Language Agnostic**: Works with any programming language supported by your VSCode installation
+- **Seamless Integration**: Perfect companion to the EntangleD CLI tool for tangling and untangling code
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## 🚀 Getting Started
 
-## Requirements
+1. Install the extension from the VSCode Marketplace
+2. Install Pandoc (required for processing Markdown):
+   ```bash
+   # On Ubuntu/Debian
+   apt-get install pandoc
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+   # On macOS
+   brew install pandoc
 
-## Extension Settings
+   # On Windows (using Chocolatey)
+   choco install pandoc
+   ```
+3. Open any Markdown file containing EntangleD code blocks
+4. Start navigating and editing your literate programs with full IDE support!
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## 🔧 Usage
 
-For example:
+EntangleD uses a simple and intuitive syntax for code blocks:
 
-This extension contributes the following settings:
+- **Referable Blocks**: Create reusable code snippets with identifiers
+  ```markdown
+  ``` {.python #function-name}
+  def greet(name):
+      return f"Hello, {name}!"
+  ```
+  ```
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+- **File Blocks**: Define target source files
+  ```markdown
+  ``` {.python file=src/main.py}
+  from greetings import greet
+  print(greet("World"))
+  ```
+  ```
 
-## Known Issues
+- **References**: Use double angle brackets to reference other code blocks
+  ```markdown
+  <<function-name>>
+  ```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+## 📚 Learn More
 
-## Release Notes
+- [EntangleD Documentation](https://entangled.github.io/) - Learn about literate programming with EntangleD
+- [GitHub Repository](https://github.com/entangled/entangled.py/) - EntangleD CLI tool and core functionality
+- [Extension Issues](https://github.com/yourusername/entangled-vscode/issues) - Report bugs or request features
 
-Users appreciate release notes as you update your extension.
+## 🤝 Contributing
 
-### 1.0.0
+Found a bug? Have a feature request? We'd love to hear from you! Please visit our [GitHub repository](https://github.com/yourusername/entangled-vscode) to:
 
-Initial release of ...
+- Submit bug reports
+- Propose new features
+- Contribute code
 
-### 1.0.1
+## 📄 License
 
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This extension is licensed under the GNU GPL License. See the [LICENSE](LICENSE) file for details.
