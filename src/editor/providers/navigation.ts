@@ -127,6 +127,7 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         }
 
         // Check for definitions
+        //TODO: need to match codeblock firstline too
         const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
         if (defMatch) {
             const identifier = defMatch[1];
@@ -186,6 +187,7 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
             if (idMatch) {
                 const identifier = idMatch[1];
                 
+                //TODO: not using PATTERN
                 // Find the end of the code block
                 const blockEnd = text.indexOf('\n```', match.index + match[0].length);
                 if (blockEnd === -1) continue;
