@@ -48,125 +48,138 @@ graph TD
 
 ### 2.2 Key Components
 
-#### Core Domain (`/src/core`)
-- **Literate Programming**: Core domain logic for literate programming entities
-  - Manages code block parsing and relationships
-  - Handles dependency tracking
-  - Provides core interfaces for the system
-- **Pandoc Service**: Integration with Pandoc for Markdown processing
-  - Handles document parsing
-  - Manages Pandoc communication
+#### Extension Entry Point (`extension.ts`)
+- Manages extension lifecycle
+- Initializes core services
+- Registers VS Code providers
+- Handles document events
+- Provides comprehensive error handling and logging
 
-#### Editor Integration (`/src/editor`)
-- **Providers**: VS Code integration points
-  - Navigation providers (definition, references, hover)
-  - Symbol provider for outline view
-  - Decoration provider for visual enhancements
-- **Commands**: User command handlers
-  - Navigation commands
-  - Document processing commands
-- **Activation**: Extension lifecycle management
-  - Initialization logic
-  - Resource cleanup
+#### Document Manager (`document/manager.ts`)
+- Parses and manages literate programming markup
+- Maintains document state
+- Coordinates with Pandoc service
+- Tracks block dependencies and references
 
-#### Configuration (`/src/config`)
-- Default settings
-- User configuration management
-- Extension preferences
+#### Navigation Services (`navigation/providers.ts`)
+- Handles identifier definitions and references
+- Manages symbol overview and search
+- Provides hover information
+- Focus on literate programming entities
 
-#### Utilities (`/src/utils`)
-- Logging infrastructure
-- Common helper functions
-- Shared utilities
+#### Decoration Service (`services/decoration-provider.ts`)
+- Handles visual representation of entities
+- Updates decorations in real-time
+- Customizable highlighting styles
+- Efficient update debouncing
 
 ## 3. Data Flow
 
 ### 3.1 Document Processing Flow
-1. User opens/modifies Markdown file
-2. Document Manager processes the file
-3. Pandoc parses Markdown structure
-4. Navigation providers update their indices
-5. Decoration provider refreshes visual elements
+```mermaid
+graph TD
+    A[Document Open/Change] --> B[Extension Handler]
+    B --> C[LiterateManager]
+    C --> D[PandocService]
+    D --> E[AST Conversion]
+    E --> F[Code Block Extraction]
+    F --> G[Block Processing]
+    G --> H[Reference Resolution]
+    H --> I[Decoration Update]
 
-### 3.2 Navigation Flow
-1. User triggers navigation action
-2. Relevant provider handles the request
-3. Core domain provides necessary context
-4. VS Code UI updates accordingly
+    %% Logging Points
+    style L1 fill:#f9f,stroke:#333
+    style L2 fill:#f9f,stroke:#333
+    style L3 fill:#f9f,stroke:#333
+    L1[Debug Logging]-.->B
+    L2[Performance Logging]-.->D
+    L3[Error Logging]-.->G
+```
 
-## 4. Key Design Decisions
+### 3.2 Error Handling & Logging
+- Hierarchical error system with specific error types
+- Comprehensive debug logging (configurable via settings)
+- Performance metrics and statistics
+- Clear error messages with context
+- Stack trace preservation
 
-### 4.1 Clean Architecture
-- Clear separation of concerns between core domain and editor integration
-- Domain logic isolated from VS Code specifics
-- Dependency inversion through interfaces
+Error Types:
+- EntangledError (Base)
+- PandocError (Pandoc processing)
+- DocumentParseError (Markdown parsing)
+- BlockNotFoundError (Missing references)
+- BlockSyntaxError (Code block issues)
+- CircularReferenceError (Dependency cycles)
 
-### 4.2 Event-Driven Architecture
-- Uses VS Code's event system for document changes
-- Enables real-time updates and responsiveness
-- Reduces coupling between components
+### 3.3 Logging Categories
+1. **Lifecycle Events**
+   - Extension activation/deactivation
+   - Provider registration
+   - Command registration
 
-### 4.3 Pandoc Integration
-- External dependency for Markdown processing
-- Provides robust Markdown parsing capabilities
-- Enables future extensibility for different formats
+2. **Document Processing**
+   - File open/change events
+   - Parse operations
+   - Block extraction
+   - Reference resolution
 
-## 5. Extension Points
+3. **Performance Metrics**
+   - Processing times
+   - Block counts
+   - Memory usage
+   - Cache statistics
 
-### 5.1 Language Support
-- Language-agnostic core domain
-- Extensible through VS Code's language server protocol
-- Support for custom code block formats
+4. **Error Conditions**
+   - Parse failures
+   - Missing references
+   - Circular dependencies
+   - Invalid syntax
 
-### 5.2 Provider System
-- Modular provider architecture
-- Easy to add new VS Code capabilities
-- Extensible decoration system
+## 4. Extension Points
 
-## 6. Performance Considerations
+### 4.1 Language Support
+- Designed to be language-agnostic
+- Pandoc integration for Markdown processing
+- Extensible block parsing system
 
-### 6.1 Document Processing
-- Asynchronous processing to prevent UI blocking
-- Efficient caching of parsed documents
-- Incremental updates when possible
+### 4.2 Code Block Processors
+- Customizable block format handling
+- Language-specific features
+- Reference resolution strategies
 
-### 6.2 Memory Management
-- Proper resource cleanup
-- Efficient storage of parsed content
-- Smart cache invalidation
+## 5. Performance Considerations
 
-## 7. Security Considerations
+### 5.1 Document Processing
+- Asynchronous operations
+- Efficient caching
+- Debounced updates
+- Memory management
 
-### 7.1 File System Access
-- Restricted to workspace scope
-- Uses VS Code's security model
-- No arbitrary code execution
+### 5.2 Logging & Diagnostics
+- Configurable debug logging
+- Performance tracking
+- Memory usage monitoring
+- Error aggregation
 
-### 7.2 External Process Management
-- Controlled Pandoc execution
-- Input validation
-- Secure configuration handling
+## 6. Configuration
+```json
+{
+    "entangled.debugLogging": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable debug logging"
+    }
+}
+```
 
-## 8. Testing Strategy
+## 7. Future Considerations
 
-### 8.1 Unit Tests
-- Core domain testing
-- Provider behavior verification
-- Mock VS Code API where necessary
+### 7.1 Planned Improvements
+- Enhanced error recovery
+- Performance optimizations
+- Additional language features
 
-### 8.2 Integration Tests
-- End-to-end extension testing
-- VS Code extension host testing
-- Document processing verification
-
-## 9. Future Considerations
-
-### 9.1 Planned Improvements
-- Enhanced error handling and recovery
-- Performance optimizations for large documents
-- Additional language-specific features
-
-### 9.2 Potential Extensions
-- Custom code block processors
-- Additional navigation features
-- Enhanced visualization capabilities
+### 7.2 Potential Extensions
+- Custom block processors
+- Advanced navigation
+- Visualization enhancements
