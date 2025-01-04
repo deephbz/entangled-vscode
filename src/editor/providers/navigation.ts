@@ -35,11 +35,15 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         // Check if we're on a definition
-        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
-        if (defMatch) {
-            const identifier = defMatch[1];
-            this.logger.debug('DefinitionProvider: Providing definition', { identifier });
-            return this.documentManager.findDefinition(identifier);
+        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
+        if (codeBlockMatch) {
+            const attributes = codeBlockMatch[1];
+            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
+            if (defMatch) {
+                const identifier = defMatch[1];
+                this.logger.debug('DefinitionProvider: Providing definition', { identifier });
+                return this.documentManager.findDefinition(identifier);
+            }
         }
 
         return null;
@@ -80,11 +84,15 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         }
 
         // Check for definitions
-        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
-        if (defMatch) {
-            const identifier = defMatch[1];
-            this.logger.debug('DefinitionProvider: Providing references for definition', { identifier });
-            return this.documentManager.findReferences(identifier);
+        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
+        if (codeBlockMatch) {
+            const attributes = codeBlockMatch[1];
+            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
+            if (defMatch) {
+                const identifier = defMatch[1];
+                this.logger.debug('DefinitionProvider: Providing references for definition', { identifier });
+                return this.documentManager.findReferences(identifier);
+            }
         }
 
         return [];
@@ -126,18 +134,21 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
             }
         }
 
-        // Check for definitions
-        //TODO: need to match codeblock firstline too
-        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
-        if (defMatch) {
-            const identifier = defMatch[1];
-            const start = line.indexOf('#' + identifier);
-            return this.provideHoverContent(identifier, new vscode.Range(
-                position.line,
-                start,
-                position.line,
-                start + identifier.length + 1
-            ));
+        // Check for definitions in code block attributes
+        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
+        if (codeBlockMatch) {
+            const attributes = codeBlockMatch[1];
+            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
+            if (defMatch) {
+                const identifier = defMatch[1];
+                const start = attributes.indexOf('#' + identifier) + line.indexOf(attributes);
+                return this.provideHoverContent(identifier, new vscode.Range(
+                    position.line,
+                    start,
+                    position.line,
+                    start + identifier.length + 1
+                ));
+            }
         }
 
         return undefined;
