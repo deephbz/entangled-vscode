@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-// import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
 
 /**
@@ -7,7 +6,6 @@ import { Logger } from '../../utils/logger';
  */
 export class DecorationProvider {
     private static instance: DecorationProvider;
-    // private documentManager: LiterateManager;
     private logger: Logger;
     private definitionDecorationType: vscode.TextEditorDecorationType;
     private referenceDecorationType: vscode.TextEditorDecorationType;
@@ -15,7 +13,6 @@ export class DecorationProvider {
     private timeout?: NodeJS.Timeout;
 
     private constructor() {
-        // this.documentManager = LiterateManager.getInstance();
         this.logger = Logger.getInstance();
 
         this.definitionDecorationType = vscode.window.createTextEditorDecorationType({
@@ -73,7 +70,10 @@ export class DecorationProvider {
         );
     }
 
-    private triggerUpdateDecorations(): void {
+    /**
+     * Triggers an update of decorations with debouncing
+     */
+    public triggerUpdateDecorations(): void {
         if (this.timeout) {
             clearTimeout(this.timeout);
             this.timeout = undefined;
