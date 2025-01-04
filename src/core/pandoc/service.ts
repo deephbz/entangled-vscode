@@ -5,6 +5,17 @@ import { LANGUAGE, PATTERNS } from '../../utils/constants';
 import { PandocCodeBlock } from './types';
 import { spawn } from 'child_process';
 
+// Type definitions for Pandoc AST
+type PandocAttribute = [string | null, string[], [string, string][]];
+type PandocCodeBlockData = [PandocAttribute, string];
+interface PandocBlock {
+    t: string;
+    c: PandocCodeBlockData | PandocBlock[];
+}
+interface PandocAST {
+    blocks: PandocBlock[];
+}
+
 export class PandocService {
     private static instance: PandocService;
     private logger: Logger;
@@ -58,7 +69,7 @@ export class PandocService {
         });
     }
 
-    async convertToAST(document: vscode.TextDocument): Promise<unknown> {
+    async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
         this.logger.debug('Converting document to AST', {
             uri: document.uri.toString(),
             size: document.getText().length
@@ -71,7 +82,7 @@ export class PandocService {
             ];
 
             const result = await this.executePandoc(document.getText(), args);
-            const ast = JSON.parse(result);
+            const ast = JSON.parse(result) as PandocAST;
             
             this.logger.debug('Document converted to AST successfully');
             return ast;
@@ -86,30 +97,50 @@ export class PandocService {
         }
     }
 
-    extractCodeBlocks(ast: unknown): PandocCodeBlock[] {
+    extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
         this.logger.debug('Extracting code blocks from AST');
 
         try {
-            if (!ast || typeof ast !== 'object' || !('blocks' in ast)) {
+            if (!ast || !ast.blocks) {
                 this.logger.error('Invalid AST structure');
                 throw new PandocError('Invalid AST structure', '');
             }
 
             const blocks: PandocCodeBlock[] = [];
 
-            const extractFromBlock = (block: any): void => {
+            const extractFromBlock = (block: PandocBlock): void => {
                 if (block.t === 'CodeBlock') {
-                    const [attributes, content] = block.c;
-                    // Pandoc AST format: [[identifier, classes, key-value-pairs], content]
-                    const [[id, classes]] = attributes;
-                    
-                    // The identifier is in the format "#name" in the attributes
-                    const identifier = id?.startsWith('#') ? id.slice(1) : id;
-                    
+                    const [attributes, content] = block.c as PandocCodeBlockData;
+                    const [[rawId, classes, keyVals]] = [attributes];
+
+                    // First check if there's a direct identifier
+                    let identifier = rawId?.startsWith('#') ? rawId.slice(1) : undefined;
+
+                    // If no direct identifier, look for it in key-value pairs
+                    if (!identifier && Array.isArray(keyVals)) {
+                        for (const [key, value] of keyVals) {
+                            if (key === 'id' || key === 'identifier') {
+                                identifier = value;
+                                break;
+                            }
+                        }
+                    }
+
+                    // If still no identifier, check the raw attributes string for #identifier
+                    if (!identifier) {
+                        const text = attributes.toString();
+                        const idMatch = text.match(PATTERNS.BLOCK_IDENTIFIER);
+                        if (idMatch) {
+                            identifier = idMatch[1];
+                        }
+                    }
+
                     if (identifier) {
-                        // Find references in the format <<name>>
-                        const references = (content.match(PATTERNS.ALL_REFERENCES) || [])
-                            .map((ref: string) => ref.slice(2, -2));
+                        this.logger.debug('Found code block', { identifier });
+                        
+                        // Find references in the format <<n>>
+                        const references = Array.from(content.matchAll(PATTERNS.ALL_REFERENCES))
+                            .map(match => match[1]);
 
                         blocks.push({
                             identifier,
@@ -121,13 +152,13 @@ export class PandocService {
                 } else if (Array.isArray(block.c)) {
                     for (const child of block.c) {
                         if (typeof child === 'object' && child !== null) {
-                            extractFromBlock(child);
+                            extractFromBlock(child as PandocBlock);
                         }
                     }
                 }
             };
 
-            for (const block of (ast as any).blocks) {
+            for (const block of ast.blocks) {
                 extractFromBlock(block);
             }
 

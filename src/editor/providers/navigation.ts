@@ -20,13 +20,29 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position,
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Definition> {
-        const range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE);
-        if (!range) return null;
+        const line = document.lineAt(position.line).text;
+        const matches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
+        
+        for (const match of matches) {
+            const start = match.index!;
+            const end = start + match[0].length;
+            
+            if (position.character >= start && position.character <= end) {
+                const identifier = match[1]; // Use the capture group from ALL_REFERENCES
+                this.logger.debug('Providing definition', { identifier });
+                return this.documentManager.findDefinition(identifier);
+            }
+        }
 
-        const text = document.getText(range);
-        const identifier = text.substring(2, text.length - 2); // Remove << and >>
-        this.logger.debug('Providing definition', { identifier });
-        return this.documentManager.findDefinition(identifier);
+        // Check if we're on a definition
+        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
+        if (defMatch) {
+            const identifier = defMatch[1];
+            this.logger.debug('Providing definition', { identifier });
+            return this.documentManager.findDefinition(identifier);
+        }
+
+        return null;
     }
 }
 
@@ -48,25 +64,30 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         _context: vscode.ReferenceContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.Location[]> {
-        const range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE_OR_DEFINITION);
-        if (!range) {
-            return [];
+        const line = document.lineAt(position.line).text;
+        
+        // Check for references
+        const refMatches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
+        for (const match of refMatches) {
+            const start = match.index!;
+            const end = start + match[0].length;
+            
+            if (position.character >= start && position.character <= end) {
+                const identifier = match[1];
+                this.logger.debug('Providing references for reference', { identifier });
+                return this.documentManager.findReferences(identifier);
+            }
         }
 
-        const word = document.getText(range);
-        let identifier = word;
-
-        // Handle both reference (<<id>>) and definition (#id) formats
-        if (word.startsWith('<<')) {
-            identifier = word.substring(2, word.length - 2);
-        } else if (word.startsWith('#')) {
-            identifier = word.substring(1);
-        } else {
-            return [];
+        // Check for definitions
+        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
+        if (defMatch) {
+            const identifier = defMatch[1];
+            this.logger.debug('Providing references for definition', { identifier });
+            return this.documentManager.findReferences(identifier);
         }
 
-        this.logger.debug('Providing references', { identifier });
-        return this.documentManager.findReferences(identifier);
+        return [];
     }
 }
 
@@ -86,29 +107,42 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
-        // Check for reference format <<identifier>>
-        let range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE);
-        let isReference = true;
-
-        // If not found, check for definition format #identifier
-        if (!range) {
-            range = document.getWordRangeAtPosition(position, PATTERNS.DEFINITION);
-            isReference = false;
+        const line = document.lineAt(position.line).text;
+        
+        // Check for references
+        const refMatches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
+        for (const match of refMatches) {
+            const start = match.index!;
+            const end = start + match[0].length;
+            
+            if (position.character >= start && position.character <= end) {
+                const identifier = match[1];
+                return this.provideHoverContent(identifier, new vscode.Range(
+                    position.line,
+                    start,
+                    position.line,
+                    end
+                ));
+            }
         }
 
-        if (!range) {
-            return undefined;
+        // Check for definitions
+        const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
+        if (defMatch) {
+            const identifier = defMatch[1];
+            const start = line.indexOf('#' + identifier);
+            return this.provideHoverContent(identifier, new vscode.Range(
+                position.line,
+                start,
+                position.line,
+                start + identifier.length + 1
+            ));
         }
 
-        const word = document.getText(range);
-        let identifier: string;
+        return undefined;
+    }
 
-        if (isReference) {
-            identifier = word.substring(2, word.length - 2); // Remove << and >>
-        } else {
-            identifier = word.substring(1); // Remove #
-        }
-
+    private async provideHoverContent(identifier: string, range: vscode.Range): Promise<vscode.Hover | undefined> {
         try {
             const content = this.documentManager.getExpandedContent(identifier);
             const locations = this.documentManager.findDefinition(identifier);

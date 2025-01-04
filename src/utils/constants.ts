@@ -31,9 +31,9 @@ const BASIC_PATTERNS = {
     ATTR_OPEN: '{',
     ATTR_CLOSE: '}',
     /** Attribute types */
-    IDENTIFIER: '#[^\\s}]+',
-    LANGUAGE: '\\.[^\\s}]+',
-    KEY_VALUE: '[^#.][^\\s=}]+=(?:[^\\s}]+)?'
+    IDENTIFIER: '#([\\w.-]+)',                  // Capture the identifier without the #
+    LANGUAGE: '\\.([\\w.-]+)',                  // Capture the language without the .
+    KEY_VALUE: '([\\w.-]+)=(?:"([^"]*)"|([^\\s}]*))'  // Support both quoted and unquoted values
 } as const;
 
 /** Pattern for reference content */
@@ -47,7 +47,9 @@ export const PATTERNS = {
     BASIC: BASIC_PATTERNS,
 
     /** Pattern for code block opening with attributes */
-    CODE_BLOCK_OPEN: new RegExp(`^${BASIC_PATTERNS.FENCE}\\s*\\${BASIC_PATTERNS.ATTR_OPEN}([^${BASIC_PATTERNS.ATTR_CLOSE}]*)\\${BASIC_PATTERNS.ATTR_CLOSE}`),
+    CODE_BLOCK_OPEN: new RegExp(
+        `^${BASIC_PATTERNS.FENCE}\\s*\\${BASIC_PATTERNS.ATTR_OPEN}\\s*([^${BASIC_PATTERNS.ATTR_CLOSE}]*)\\s*\\${BASIC_PATTERNS.ATTR_CLOSE}`
+    ),
 
     /** Pattern for finding references */
     REFERENCE: new RegExp(`${BASIC_PATTERNS.REF_OPEN}${REF_CONTENT}${BASIC_PATTERNS.REF_CLOSE}`),
@@ -72,7 +74,7 @@ export const PATTERNS = {
 
     /** Pattern for finding a code block with identifier */
     CODE_BLOCK: new RegExp(
-        `^${BASIC_PATTERNS.FENCE}\\s*\\${BASIC_PATTERNS.ATTR_OPEN}([^${BASIC_PATTERNS.ATTR_CLOSE}]*${BASIC_PATTERNS.IDENTIFIER}[^${BASIC_PATTERNS.ATTR_CLOSE}]*)\\${BASIC_PATTERNS.ATTR_CLOSE}`,
+        `^${BASIC_PATTERNS.FENCE}\\s*\\${BASIC_PATTERNS.ATTR_OPEN}\\s*([^${BASIC_PATTERNS.ATTR_CLOSE}]*${BASIC_PATTERNS.IDENTIFIER}[^${BASIC_PATTERNS.ATTR_CLOSE}]*)\\s*\\${BASIC_PATTERNS.ATTR_CLOSE}`,
         'gm'
     )
 } as const;
