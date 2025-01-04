@@ -32,7 +32,7 @@ export class PandocService {
     }
 
     private async executePandoc(input: string, args: string[]): Promise<string> {
-        this.logger.debug('Executing pandoc', { args });
+        this.logger.debug('PandocService::Executing pandoc', { args });
 
         return new Promise((resolve, reject) => {
             const process = spawn('pandoc', args);
@@ -70,7 +70,7 @@ export class PandocService {
     }
 
     async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
-        this.logger.debug('Converting document to AST', {
+        this.logger.debug('PandocService::Converting document to AST', {
             uri: document.uri.toString(),
             size: document.getText().length
         });
@@ -84,7 +84,7 @@ export class PandocService {
             const result = await this.executePandoc(document.getText(), args);
             const ast = JSON.parse(result) as PandocAST;
             
-            this.logger.debug('Document converted to AST successfully');
+            this.logger.debug('PandocService::Document converted to AST successfully');
             return ast;
         } catch (error) {
             if (error instanceof PandocError) {
@@ -98,7 +98,7 @@ export class PandocService {
     }
 
     extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
-        this.logger.debug('Extracting code blocks from AST');
+        this.logger.debug('PandocService::Extracting code blocks from AST');
 
         try {
             if (!ast || !ast.blocks) {
@@ -136,7 +136,7 @@ export class PandocService {
                     }
 
                     if (identifier) {
-                        this.logger.debug('Found code block', { identifier });
+                        this.logger.debug('PandocService::extractCodeBlocks::Found code block', { identifier });
                         
                         // Find references in the format <<n>>
                         const references = Array.from(content.matchAll(PATTERNS.ALL_REFERENCES))
@@ -162,7 +162,7 @@ export class PandocService {
                 extractFromBlock(block);
             }
 
-            this.logger.debug('Code blocks extracted successfully', {
+            this.logger.debug('PandocService::extractCodeBlocks:: extracted successfully', {
                 count: blocks.length
             });
             

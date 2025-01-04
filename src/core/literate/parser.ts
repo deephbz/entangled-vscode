@@ -24,7 +24,7 @@ export class LiterateParser implements ILiterateParser {
     }
 
     public parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
-        this.logger.debug('Starting document parsing', {
+        this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
             uri: document.uri.toString(),
             blockCount: blocks.length
         });
@@ -54,7 +54,7 @@ export class LiterateParser implements ILiterateParser {
                 });
             }
 
-            this.logger.debug('Document parsing completed', {
+            this.logger.debug('LiterateParser::parseDocument::Document parsing completed', {
                 uri: document.uri.toString(),
                 parsedBlocks: documentBlocks.length
             });
@@ -69,7 +69,7 @@ export class LiterateParser implements ILiterateParser {
     }
 
     public findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
-        this.logger.debug('Finding block location', { 
+        this.logger.debug('LiterateParser::findBlockLocation::Finding block location', { 
             identifier: block.identifier,
             uri: document.uri.toString()
         });
@@ -103,7 +103,7 @@ export class LiterateParser implements ILiterateParser {
                             const startPos = document.positionAt(blockStartPos);
                             const endPos = document.positionAt(lineStart + line.length);
                             
-                            this.logger.debug('Block location found', {
+                            this.logger.debug('LiterateParser::findBlockLocation::Block location found', {
                                 identifier: block.identifier,
                                 startLine: startLine,
                                 endLine: i
@@ -120,7 +120,7 @@ export class LiterateParser implements ILiterateParser {
                 }
             }
 
-            this.logger.debug('Block location not found', {
+            this.logger.debug('LiterateParser::findBlockLocation::Block location not found', {
                 identifier: block.identifier
             });
             return null;
@@ -139,7 +139,7 @@ export class LiterateParser implements ILiterateParser {
     }
 
     public findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[] {
-        this.logger.debug('Finding references', {
+        this.logger.debug('LiterateParser::findReferences::Finding references', {
             identifier: block.identifier,
             uri: document.uri.toString()
         });
@@ -159,7 +159,7 @@ export class LiterateParser implements ILiterateParser {
                 }
             }
 
-            this.logger.debug('References found', {
+            this.logger.debug('LiterateParser::findReferences::References found', {
                 identifier: block.identifier,
                 count: ranges.length
             });

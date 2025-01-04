@@ -19,7 +19,7 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
     if (document.uri.scheme !== 'file') {
         // Only log for non-output schemes to avoid recursion
         if (document.uri.scheme !== 'output') {
-            logger.debug('Skipping non-file document', { 
+            logger.debug('handleDocument::Skipping non-file document', { 
                 uri: document.uri.toString(),
                 scheme: document.uri.scheme 
             });
@@ -28,7 +28,7 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
     }
     
     if (!isMarkdownDocument(document)) {
-        logger.debug('Skipping non-markdown document', { 
+        logger.debug('handleDocument::Skipping non-markdown document', { 
             uri: document.uri.toString(),
             languageId: document.languageId 
         });
@@ -36,7 +36,7 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
     }
 
     try {
-        logger.debug('Starting document processing', {
+        logger.debug('handleDocument::Starting document processing', {
             uri: document.uri.toString(),
             size: document.getText().length
         });
@@ -48,10 +48,10 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
         const editor = vscode.window.visibleTextEditors.find(e => e.document === document);
         if (editor) {
             DecorationProvider.getInstance().triggerUpdateDecorations();
-            logger.debug('Decorations updated');
+            logger.debug('handleDocument::Decorations updated');
         }
 
-        logger.debug('Document processed successfully');
+        logger.debug('handleDocument:: processed successfully');
     } catch (error) {
         if (error instanceof PandocError) {
             logger.error('Pandoc processing failed', error, {

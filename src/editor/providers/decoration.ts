@@ -45,7 +45,7 @@ export class DecorationProvider {
     }
 
     public activate(context: vscode.ExtensionContext): void {
-        this.logger.debug('Activating decoration provider');
+        this.logger.debug('DecorationProvider::Activating decoration provider');
 
         if (this.activeEditor) {
             this.triggerUpdateDecorations();
@@ -58,7 +58,7 @@ export class DecorationProvider {
                     return;
                 }
                 
-                this.logger.debug('Active editor changed', {
+                this.logger.debug('Decoration provider::Active editor changed', {
                     uri: editor?.document.uri.toString(),
                     languageId: editor?.document.languageId
                 });
@@ -75,7 +75,7 @@ export class DecorationProvider {
                 }
                 
                 if (this.activeEditor && event.document === this.activeEditor.document) {
-                    this.logger.debug('Document changed', {
+                    this.logger.debug('Decoration provider::Document changed', {
                         uri: event.document.uri.toString(),
                         changes: event.contentChanges.length
                     });
@@ -84,7 +84,7 @@ export class DecorationProvider {
             })
         );
 
-        this.logger.debug('Decoration provider activated');
+        this.logger.debug('Decoration provider::Decoration provider activated');
     }
 
     public triggerUpdateDecorations(): void {
@@ -97,14 +97,14 @@ export class DecorationProvider {
 
     private async updateDecorations(): Promise<void> {
         if (!this.activeEditor || this.activeEditor.document.languageId !== LANGUAGE.ID) {
-            this.logger.debug('Skipping decoration update for non-markdown document', {
+            this.logger.debug('Decoration provider::Skipping decoration update for non-markdown document', {
                 uri: this.activeEditor?.document.uri.toString(),
                 languageId: this.activeEditor?.document.languageId
             });
             return;
         }
 
-        this.logger.debug('Updating decorations', {
+        this.logger.debug('Decoration provider::Updating decorations', {
             uri: this.activeEditor.document.uri.toString()
         });
 
@@ -139,7 +139,7 @@ export class DecorationProvider {
             this.activeEditor.setDecorations(this.definitionDecorationType, definitionRanges);
             this.activeEditor.setDecorations(this.referenceDecorationType, referenceRanges);
 
-            this.logger.debug('Decorations updated', {
+            this.logger.debug('Decoration provider::Decorations updated', {
                 uri: this.activeEditor.document.uri.toString(),
                 definitions: definitionRanges.length,
                 references: referenceRanges.length
@@ -152,7 +152,7 @@ export class DecorationProvider {
     }
 
     public dispose(): void {
-        this.logger.debug('Disposing decoration provider');
+        this.logger.debug('Decoration provider::Disposing decoration provider');
         this.definitionDecorationType.dispose();
         this.referenceDecorationType.dispose();
         if (this.timeout) {

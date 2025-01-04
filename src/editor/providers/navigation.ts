@@ -29,7 +29,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
             
             if (position.character >= start && position.character <= end) {
                 const identifier = match[1]; // Use the capture group from ALL_REFERENCES
-                this.logger.debug('Providing definition', { identifier });
+                this.logger.debug('DefinitionProvider: Providing definition', { identifier });
                 return this.documentManager.findDefinition(identifier);
             }
         }
@@ -38,7 +38,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
         if (defMatch) {
             const identifier = defMatch[1];
-            this.logger.debug('Providing definition', { identifier });
+            this.logger.debug('DefinitionProvider: Providing definition', { identifier });
             return this.documentManager.findDefinition(identifier);
         }
 
@@ -74,7 +74,7 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
             
             if (position.character >= start && position.character <= end) {
                 const identifier = match[1];
-                this.logger.debug('Providing references for reference', { identifier });
+                this.logger.debug('DefinitionProvider: Providing references for reference', { identifier });
                 return this.documentManager.findReferences(identifier);
             }
         }
@@ -83,7 +83,7 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         const defMatch = line.match(PATTERNS.BLOCK_IDENTIFIER);
         if (defMatch) {
             const identifier = defMatch[1];
-            this.logger.debug('Providing references for definition', { identifier });
+            this.logger.debug('DefinitionProvider: Providing references for definition', { identifier });
             return this.documentManager.findReferences(identifier);
         }
 
@@ -154,7 +154,7 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
             }
             message.appendCodeblock(content);
 
-            this.logger.debug('Providing hover', { identifier });
+            this.logger.debug('HoverProvider: Providing hover', { identifier });
             return new vscode.Hover(message, range);
         } catch (error) {
             this.logger.warn('Error providing hover', { error: error instanceof Error ? error.message : String(error) });
@@ -202,7 +202,7 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
                 );
                 
                 symbols.push(symbol);
-                this.logger.debug('Found document symbol', { identifier });
+                this.logger.debug('SymbolProvider: Found document symbol', { identifier });
             }
         }
         
