@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { PandocCodeBlock } from './types';
 import { IPandocService } from '../services/interfaces';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 import { EntangledError } from '../errors';
 
 export class PandocError extends EntangledError {

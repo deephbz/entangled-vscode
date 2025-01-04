@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { DocumentManager } from '../document/manager';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     private documentManager: DocumentManager;

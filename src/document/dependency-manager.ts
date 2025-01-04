@@ -1,5 +1,5 @@
 import { DocumentMap, CircularReference } from './types';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 
 export class DependencyManager {
     private readonly logger: Logger;

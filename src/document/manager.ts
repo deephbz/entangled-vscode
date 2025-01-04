@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { DocumentMap, FileMap, DocumentBlock } from './types';
 import { PandocService } from '../pandoc/service';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 import { IDocumentManager, IPandocService } from '../services/interfaces';
 import { DocumentParseError } from '../errors';
 import { DocumentProcessor } from './processor';

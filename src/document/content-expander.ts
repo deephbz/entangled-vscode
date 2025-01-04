@@ -1,5 +1,5 @@
 import { DocumentMap } from './types';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 import { BlockNotFoundError, CircularDependencyError } from '../errors';
 import { DependencyManager } from './dependency-manager';
 

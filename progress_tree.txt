@@ -30,6 +30,22 @@
     ○ Unit tests
     ○ Integration tests
 
+◐ Codebase Restructuring
+  ✓ Phase 1: Directory Structure
+    ✓ Created /src/core directory
+    ✓ Created /src/editor directory
+    ✓ Created /src/config directory
+    ✓ Created /src/utils directory
+  ✓ Phase 2: Move Utilities
+    ✓ Moved logger.ts to utils
+    ✓ Created centralized config files
+    ✓ Updated imports
+    ✓ Verified compilation
+  ○ Phase 3: Core Domain Logic
+  ○ Phase 4: Editor Integration
+  ○ Phase 5: Clean Up
+  ○ Phase 6: Documentation
+
 Legend:
 ✓ Complete
 ◐ In Progress

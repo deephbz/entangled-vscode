@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { PandocCodeBlock } from '../pandoc/types';
 import { DocumentBlock, CodeBlockLocation } from './types';
-import { Logger } from '../services/logger';
+import { Logger } from '../utils/logger';
 
 export class DocumentProcessor {
     private logger: Logger;
