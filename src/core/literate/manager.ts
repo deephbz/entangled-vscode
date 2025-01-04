@@ -79,20 +79,20 @@ export class LiterateManager implements ILiterateManager {
             }
 
 
-            for (const blocks of Object.values(this.documents)) {
-                for (const block of blocks) {
-                this.logger.debug('manager::AfterUpdateDeps::Block content', { 
-                        identifier: block.identifier,
-                        content: block.content,
-                        location: block.location,
-                        expandedContent: block.expandedContent,
-                        dependencies: Array.from(block.dependencies),
-                        dependents: Array.from(block.dependents),
-                        referenceRanges: block.referenceRanges
-                    }
-                );
-                }
-            }
+            // for (const blocks of Object.values(this.documents)) {
+            //     for (const block of blocks) {
+            //     this.logger.debug('manager::AfterUpdateDeps::Block content', { 
+            //             identifier: block.identifier,
+            //             content: block.content,
+            //             location: block.location,
+            //             expandedContent: block.expandedContent,
+            //             dependencies: Array.from(block.dependencies),
+            //             dependents: Array.from(block.dependents),
+            //             referenceRanges: block.referenceRanges
+            //         }
+            //     );
+            //     }
+            // }
         } catch (error) {
             if (error instanceof EntangledError) {
                 throw error;
@@ -145,16 +145,6 @@ export class LiterateManager implements ILiterateManager {
 
     private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
         for (const block of blocks) {
-            this.logger.debug('manager::addDocumentBlocks::Block content', { 
-                    identifier: block.identifier,
-                    content: block.content,
-                    location: block.location,
-                    expandedContent: block.expandedContent,
-                    dependencies: block.dependencies,
-                    dependents: block.dependents,
-                    referenceRanges: block.referenceRanges
-                }
-            );
             if (!this.documents[block.identifier]) {
                 this.documents[block.identifier] = [];
             }

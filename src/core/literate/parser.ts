@@ -43,20 +43,13 @@ export class LiterateParser implements ILiterateParser {
 
                 this.logger.debug('parseDocumentAndDecorateBlocks:: pandocBlock ', { block });
                 const references = this.findReferences(document, block);
-                const dependencies = new Set<string>(block.references);
-                this.logger.debug('parseDocumentAndDecorateBlocks:: dependencies created', {
-                    referencesArray: block.references,
-                    dependenciesSize: dependencies.size,
-                    dependenciesArray: Array.from(dependencies)
-                });
                 documentBlocks.push({
                     ...block,
                     location,
                     referenceRanges: references,
-                    dependencies,
+                    dependencies: new Set<string>(block.references),
                     dependents: new Set<string>()
                 });
-                this.logger.debug('parseDocumentAndDecorateBlocks:: docBlock ', { lastDocBlock: documentBlocks[documentBlocks.length - 1] });
             }
 
             this.logger.debug('LiterateParser::parseDocument::Document parsing completed', {
