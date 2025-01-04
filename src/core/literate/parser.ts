@@ -8,7 +8,7 @@ import { PATTERNS } from '../../utils/constants';
  * Interface for parsing literate programming documents
  */
 export interface ILiterateParser {
-    parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[];
+    parseDocumentAndDecorateBlocks(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[];
     findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null;
     findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[];
 }
@@ -23,7 +23,7 @@ export class LiterateParser implements ILiterateParser {
         this.logger = Logger.getInstance();
     }
 
-    public parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
+    public parseDocumentAndDecorateBlocks(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
         this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
             uri: document.uri.toString(),
             blockCount: blocks.length
@@ -43,13 +43,10 @@ export class LiterateParser implements ILiterateParser {
 
                 const references = this.findReferences(document, block);
                 documentBlocks.push({
-                    identifier: block.identifier,
-                    content: block.content,
-                    language: block.language,
+                    ...block,
                     location,
-                    references: block.references,
                     referenceRanges: references,
-                    dependencies: new Set<string>(),
+                    dependencies: new Set<string>(block.references),
                     dependents: new Set<string>()
                 });
             }

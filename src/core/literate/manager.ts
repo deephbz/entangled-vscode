@@ -52,7 +52,7 @@ export class LiterateManager implements ILiterateManager {
             
             // Process and add new blocks
             try {
-                const processedBlocks = this.parser.parseDocument(document, newDocBlocks);
+                const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, newDocBlocks);
                 this.logger.debug('manager::parseDocument::Blocks processed', { 
                     totalBlocks: processedBlocks.length,
                     withIdentifiers: processedBlocks.filter(b => b.identifier).length
@@ -76,6 +76,22 @@ export class LiterateManager implements ILiterateManager {
                     count: circular.length,
                     references: circular.map(ref => ref.path)
                 });
+            }
+
+
+            for (const blocks of Object.values(this.documents)) {
+                for (const block of blocks) {
+                this.logger.debug('manager::AfterUpdateDeps::Block content', { 
+                        identifier: block.identifier,
+                        content: block.content,
+                        location: block.location,
+                        expandedContent: block.expandedContent,
+                        dependencies: block.dependencies,
+                        dependents: block.dependents,
+                        referenceRanges: block.referenceRanges
+                    }
+                );
+                }
             }
         } catch (error) {
             if (error instanceof EntangledError) {
@@ -129,6 +145,16 @@ export class LiterateManager implements ILiterateManager {
 
     private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
         for (const block of blocks) {
+            this.logger.debug('manager::addDocumentBlocks::Block content', { 
+                    identifier: block.identifier,
+                    content: block.content,
+                    location: block.location,
+                    expandedContent: block.expandedContent,
+                    dependencies: block.dependencies,
+                    dependents: block.dependents,
+                    referenceRanges: block.referenceRanges
+                }
+            );
             if (!this.documents[block.identifier]) {
                 this.documents[block.identifier] = [];
             }

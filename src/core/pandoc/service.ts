@@ -111,8 +111,8 @@ export class PandocService {
             const extractFromBlock = (block: PandocBlock): void => {
                 if (block.t === 'CodeBlock') {
                     const [attributes, content] = block.c as PandocCodeBlockData;
-                    const [[rawId, classes, _]] = [attributes];  // key-value pairs are unused for now. It's a list of tuples
-                    // this.logger.debug('PandocCodeBlock:: rawId, classes, keyValues = ', { rawId, classes, keyVals });
+                    const [[rawId, classes, keyVals]] = [attributes];  // key-value pairs are unused for now. It's a list of tuples
+                    this.logger.debug('PandocCodeBlock:: rawId, classes, keyVals = ', { rawId, classes, keyVals });
 
                     // check empty
                     let identifier = rawId ? rawId : undefined;
