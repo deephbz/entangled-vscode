@@ -86,8 +86,8 @@ export class LiterateManager implements ILiterateManager {
                         content: block.content,
                         location: block.location,
                         expandedContent: block.expandedContent,
-                        dependencies: block.dependencies,
-                        dependents: block.dependents,
+                        dependencies: Array.from(block.dependencies),
+                        dependents: Array.from(block.dependents),
                         referenceRanges: block.referenceRanges
                     }
                 );
