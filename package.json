@@ -16,14 +16,6 @@
     "Programming Languages"
   ],
   "contributes": {
-    "languages": [
-      {
-        "id": "entangled-markdown",
-        "aliases": ["Entangled Markdown", "entangled-markdown"],
-        "extensions": [".md"],
-        "configuration": "./language-configuration.json"
-      }
-    ],
     "configuration": {
       "title": "EntangleD",
       "properties": {
@@ -36,12 +28,9 @@
     },
     "grammars": [
       {
-        "language": "entangled-markdown",
-        "scopeName": "text.markdown.entangled",
-        "path": "./syntaxes/entangled-markdown.tmLanguage.json",
-        "embeddedLanguages": {
-          "meta.embedded.block.generic": "markdown"
-        }
+        "scopeName": "text.markdown.entangled.injection",
+        "path": "./syntaxes/entangled.language-injection.json",
+        "injectTo": ["text.html.markdown"]
       }
     ],
     "commands": [
@@ -63,7 +52,13 @@
         "command": "entangled-vscode.peekReferences",
         "key": "alt+f12",
         "mac": "alt+f12",
-        "when": "editorTextFocus && editorLangId == 'entangled-markdown'"
+        "when": "editorTextFocus && editorLangId == 'markdown'"
+      },
+      {
+        "command": "entangled.insertReference",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus && editorLangId == 'markdown'"
       }
     ],
     "colors": [

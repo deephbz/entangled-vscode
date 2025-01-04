@@ -5,13 +5,14 @@ import { DecorationProvider } from './editor/providers/decoration';
 import { ExtensionActivator } from './editor/activation';
 import { Logger } from './utils/logger';
 import { PandocError, DocumentParseError } from './utils/errors';
+import { LANGUAGE } from './utils/constants';
 
 // Extension Output Channel
 const logger = Logger.getInstance();
 
 // Document Processing
 const isMarkdownDocument = (document: vscode.TextDocument): boolean =>
-    document.languageId === 'entangled-markdown';
+    document.languageId === LANGUAGE.ID;
 
 const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
     // Early exit checks with debug logs

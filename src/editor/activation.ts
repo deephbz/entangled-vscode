@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../core/literate/manager';
 import { Logger } from '../utils/logger';
+import { LANGUAGE, SCHEMES } from '../utils/constants';
 import { EntangledDefinitionProvider, EntangledReferenceProvider, EntangledHoverProvider, EntangledDocumentSymbolProvider } from './providers/navigation';
 import { DecorationProvider } from './providers/decoration';
 import { CommandHandler } from './commands';
@@ -30,19 +31,19 @@ export class ExtensionActivator {
         try {
             context.subscriptions.push(
                 vscode.languages.registerDefinitionProvider(
-                    { scheme: 'file', language: 'entangled-markdown' },
+                    { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
                     new EntangledDefinitionProvider()
                 ),
                 vscode.languages.registerReferenceProvider(
-                    { scheme: 'file', language: 'entangled-markdown' },
+                    { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
                     new EntangledReferenceProvider()
                 ),
                 vscode.languages.registerHoverProvider(
-                    { scheme: 'file', language: 'entangled-markdown' },
+                    { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
                     new EntangledHoverProvider()
                 ),
                 vscode.languages.registerDocumentSymbolProvider(
-                    { scheme: 'file', language: 'entangled-markdown' },
+                    { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
                     new EntangledDocumentSymbolProvider()
                 )
             );
@@ -100,7 +101,7 @@ export class ExtensionActivator {
         // Setup document change handling
         vscode.workspace.onDidChangeTextDocument(
             event => {
-                if (event.document.languageId === 'entangled-markdown') {
+                if (event.document.languageId === LANGUAGE.ID) {
                     this.documentManager.parseDocument(event.document)
                         .catch(error => this.logger.error('Failed to parse document on change', error));
                 }
@@ -111,7 +112,7 @@ export class ExtensionActivator {
 
         vscode.workspace.onDidOpenTextDocument(
             document => {
-                if (document.languageId === 'entangled-markdown') {
+                if (document.languageId === LANGUAGE.ID) {
                     this.documentManager.parseDocument(document)
                         .catch(error => this.logger.error('Failed to parse document on open', error));
                 }

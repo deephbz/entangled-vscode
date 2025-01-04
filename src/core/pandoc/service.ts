@@ -4,6 +4,7 @@ import { PandocCodeBlock } from './types';
 import { IPandocService } from '../interfaces';
 import { Logger } from '../../utils/logger';
 import { EntangledError } from '../../utils/errors';
+import { LANGUAGE } from '../../utils/constants';
 
 export class PandocError extends EntangledError {
     constructor(message: string, public readonly stderr: string) {
@@ -44,7 +45,7 @@ export class PandocService implements IPandocService {
 
         // Convert document to AST
         return new Promise<unknown>((resolve, reject) => {
-            const pandoc = spawn('pandoc', ['-f', 'markdown', '-t', 'json']);
+            const pandoc = spawn('pandoc', ['-f', LANGUAGE.PANDOC_FORMAT, '-t', 'json']);
             let stdout = '';
             let stderr = '';
 
