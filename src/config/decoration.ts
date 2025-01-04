@@ -30,11 +30,11 @@ export const defaultDecorationConfig: DecorationConfig = {
         backgroundColor: { id: 'entangled.inBlockRef.background' },
         color: { id: 'entangled.inBlockRef.foreground' },
         before: {
-            contentText: '⟨',
+            contentText: '',
             margin: '0 2px 0 0'
         },
         after: {
-            contentText: '⟩',
+            contentText: '',
             margin: '0 0 0 2px'
         }
     },
@@ -42,11 +42,11 @@ export const defaultDecorationConfig: DecorationConfig = {
         backgroundColor: { id: 'entangled.outBlockRef.background' },
         color: { id: 'entangled.outBlockRef.foreground' },
         before: {
-            contentText: '《',
+            contentText: '',
             margin: '0 2px 0 0'
         },
         after: {
-            contentText: '》',
+            contentText: '',
             margin: '0 0 0 2px'
         }
     }

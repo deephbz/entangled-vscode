@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { LANGUAGE } from '../../utils/constants';
+import { LANGUAGE, PATTERNS } from '../../utils/constants';
+import { defaultDecorationConfig } from '../../config/decoration';
 
 /**
  * Manages decorations for literate programming elements in the editor
@@ -16,23 +17,13 @@ export class DecorationProvider {
     private constructor() {
         this.logger = Logger.getInstance();
 
-        this.definitionDecorationType = vscode.window.createTextEditorDecorationType({
-            backgroundColor: { id: 'entangled.definitionBackground' },
-            borderWidth: '1px',
-            borderStyle: 'solid',
-            borderColor: { id: 'entangled.definitionBorder' },
-            overviewRulerColor: { id: 'entangled.definitionRuler' },
-            overviewRulerLane: vscode.OverviewRulerLane.Right
-        });
+        this.definitionDecorationType = vscode.window.createTextEditorDecorationType(
+            defaultDecorationConfig.definitionStyle
+        );
 
-        this.referenceDecorationType = vscode.window.createTextEditorDecorationType({
-            backgroundColor: { id: 'entangled.referenceBackground' },
-            borderWidth: '1px',
-            borderStyle: 'solid',
-            borderColor: { id: 'entangled.referenceBorder' },
-            overviewRulerColor: { id: 'entangled.referenceRuler' },
-            overviewRulerLane: vscode.OverviewRulerLane.Right
-        });
+        this.referenceDecorationType = vscode.window.createTextEditorDecorationType(
+            defaultDecorationConfig.outBlockReferenceStyle
+        );
 
         this.activeEditor = vscode.window.activeTextEditor;
     }
@@ -114,25 +105,47 @@ export class DecorationProvider {
             this.activeEditor.setDecorations(this.referenceDecorationType, []);
 
             const text = this.activeEditor.document.getText();
-            const definitionRegex = /^```\s*\{[^}]*#([^\s\}]+)[^}]*\}/gm;
-            const referenceRegex = /<<([^>]+)>>/g;
+            
+            // Use predefined patterns from constants
+            const definitionMatches = Array.from(text.matchAll(PATTERNS.CODE_BLOCK));
+            const referenceMatches = Array.from(text.matchAll(PATTERNS.ALL_REFERENCES));
+
+            if (!definitionMatches.length && !referenceMatches.length) {
+                this.logger.debug('Decoration provider::No matches found in document', {
+                    uri: this.activeEditor.document.uri.toString()
+                });
+            }
 
             const definitionRanges: vscode.Range[] = [];
             const referenceRanges: vscode.Range[] = [];
 
-            // Find definitions
-            let match;
-            while ((match = definitionRegex.exec(text))) {
-                const startPos = this.activeEditor.document.positionAt(match.index);
-                const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
+            // Process definitions
+            for (const match of definitionMatches) {
+                const startPos = this.activeEditor.document.positionAt(match.index!);
+                const endPos = this.activeEditor.document.positionAt(match.index! + match[0].length);
                 definitionRanges.push(new vscode.Range(startPos, endPos));
             }
 
-            // Find references
-            while ((match = referenceRegex.exec(text))) {
-                const startPos = this.activeEditor.document.positionAt(match.index);
-                const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
+            // Process references
+            for (const match of referenceMatches) {
+                const startPos = this.activeEditor.document.positionAt(match.index!);
+                const endPos = this.activeEditor.document.positionAt(match.index! + match[0].length);
                 referenceRanges.push(new vscode.Range(startPos, endPos));
+            }
+
+            // Log any potential decoration issues
+            if (definitionMatches.length !== definitionRanges.length) {
+                this.logger.warn('Decoration provider::Mismatch in definition decorations', {
+                    matches: definitionMatches.length,
+                    ranges: definitionRanges.length
+                });
+            }
+
+            if (referenceMatches.length !== referenceRanges.length) {
+                this.logger.warn('Decoration provider::Mismatch in reference decorations', {
+                    matches: referenceMatches.length,
+                    ranges: referenceRanges.length
+                });
             }
 
             // Apply decorations
