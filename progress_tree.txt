@@ -1,50 +1,34 @@
-✓ Project Structure Setup
-  ✓ Created directory structure for components
-  ✓ Set up package.json with proper configuration
-  ✓ Added language configuration for Entangled Markdown
+✓ Core Features
+  ✓ Symbol Management
+    ✓ Outline view implementation
+    ✓ Symbol search functionality
+    ✓ Integration with VS Code symbols
 
-✓ Pandoc Integration (Core)
-  ✓ Created types for Pandoc AST
-  ✓ Implemented PandocService with AST conversion
-  ✓ Added code block extraction functionality
-  ✓ Implemented error handling (PandocError)
-  ◐ Adding AST result caching
-  ○ Incremental parsing support
+  ✓ Code Navigation
+    ✓ Definition provider
+    ✓ Reference provider
+    ✓ Cross-file navigation
+    ✓ Hover information
 
-✓ Document Management
-  ✓ Designed and implemented interfaces
-  ✓ Implemented DocumentManager singleton
-  ✓ Added DependencyManager for references
-  ✓ Implemented ContentExpander
-  ✓ Added document parsing and caching
-  ◐ Optimizing block storage for large files
+  ✓ Entity Decoration
+    ✓ Identifier highlighting
+    ✓ Reference highlighting
+    ✓ Custom style support
 
-✓ Navigation Features
-  ✓ Implemented DefinitionProvider
-  ✓ Implemented ReferenceProvider
-  ✓ Added HoverProvider
-  ✓ Created DocumentSymbolProvider
-  ✓ Added error handling and logging
-  ◐ Optimizing provider performance
+◐ Enhanced Features
+  ◐ Error Detection
+    ✓ Circular dependency detection
+    ◐ Missing definition detection
+    ○ Unused definition detection
+    ○ LSP integration
 
-✓ VSCode Integration
-  ✓ Set up extension activation events
-  ✓ Implemented command handlers
-  ✓ Added document change tracking
-  ✓ Created output channel for logging
-  ◐ Adding visual indicators for references
-  ○ Implementing folding support
-
-○ Testing and Documentation
-  ◐ Creating example markdown files
-  ○ Unit tests for core services
-  ○ Integration tests
-  ○ API documentation
-
-○ Performance Optimization
-  ○ Profile and optimize critical paths
-  ○ Memory usage optimization
-  ○ Large file handling improvements
+○ Infrastructure
+  ◐ Performance Optimization
+    ◐ Load time improvement
+    ○ Memory usage optimization
+  ○ Testing
+    ○ Unit tests
+    ○ Integration tests
 
 Legend:
 ✓ Complete

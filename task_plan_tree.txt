@@ -1,94 +1,38 @@
-- Pandoc Integration (Core)
-  - Design PandocService interface (DONE)
-  - Implement AST parsing and conversion (DONE)
-  - Add code block extraction (DONE)
-  - Implement error handling (DONE)
-  - Add AST result caching
-    - Design caching strategy
-    - Implement cache invalidation
-    - Add memory limits
-  - Add incremental parsing support
-    - Design change detection
-    - Implement partial updates
+- Core Features (Completed)
+  - Symbol Management
+    - Outline view for code blocks
+    - Symbol search implementation
+    - VS Code integration
 
-- Document Management (Core)
-  - Design document structure interface (DONE)
-  - Implement block storage and retrieval (DONE)
-  - Add reference resolution (DONE)
-  - Handle circular dependencies (DONE)
-  - Implement content expansion (DONE)
-  - Optimize for large files
-    - Add block storage pagination
-    - Implement lazy loading
-    - Add memory usage monitoring
+  - Code Navigation
+    - Definition/Reference providers
+    - Cross-file navigation
+    - Hover information
 
-- Navigation Features (Core)
-  - Implement DefinitionProvider (DONE)
-  - Implement ReferenceProvider (DONE)
-  - Add HoverProvider (DONE)
-  - Create DocumentSymbolProvider (DONE)
-  - Add error handling and logging (DONE)
-  - Optimize provider performance
-    - Add result caching
-    - Implement lazy loading
-    - Profile and optimize critical paths
+  - Entity Decoration
+    - Entity highlighting
+    - Style customization
 
-- VSCode Integration
-  - Set up extension activation (DONE)
-  - Implement command handlers (DONE)
-  - Add document change tracking (DONE)
-  - Create logging system (DONE)
-  - Add visual indicators
-    - Highlight reference targets
-    - Show reference counts
-    - Add status bar info
-  - Implement folding support
-    - Add folding ranges
-    - Handle nested blocks
-    - Support custom markers
+- Enhanced Features (In Progress)
+  - Error Detection
+    - Missing definition detection
+    - Unused definition detection
+    - LSP integration
+    - Error reporting improvements
 
-- Testing and Documentation
-  - Create example files
-    - Basic usage examples
-    - Advanced patterns
-    - Error cases
-  - Add unit tests
-    - PandocService tests
-    - DocumentManager tests
-    - Navigation provider tests
-  - Add integration tests
-    - Document parsing
-    - Navigation features
-    - Error handling
-  - Write documentation
-    - API reference
-    - Usage guide
-    - Contributing guide
+- Infrastructure
+  - Performance Optimization
+    - Reduce load time to < 1s
+    - Memory usage < 30MB
+    - Large file optimization
+  
+  - Testing
+    - Core functionality tests
+    - Navigation tests
+    - Error handling tests
 
-- Performance Optimization
-  - Profile critical operations
-    - Document parsing
-    - Reference resolution
-    - Navigation operations
-  - Optimize memory usage
-    - Implement garbage collection
-    - Add memory limits
-    - Monitor resource usage
-  - Large file support
-    - Add pagination
-    - Implement lazy loading
-    - Optimize search operations
-
-- Future Enhancements
-  - Add syntax highlighting
-    - Custom token provider
-    - Theme support
-    - Reference highlighting
-  - Multi-file support
-    - Workspace-wide references
-    - Project configuration
-    - File dependencies
-  - Enhanced features
-    - Live preview
-    - Custom language server
-    - Refactoring support
+- Future Considerations
+  - Advanced Features
+    - Custom language support
+    - Enhanced error detection
+    - Additional markup syntax support
