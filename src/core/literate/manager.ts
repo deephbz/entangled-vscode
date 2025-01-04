@@ -3,6 +3,7 @@ import { Logger } from '../../utils/logger';
 import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './entities';
 import { ILiterateParser, LiterateParser } from './parser';
 import { BlockNotFoundError, CircularDependencyError } from '../../utils/errors';
+import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
     parseDocument(document: vscode.TextDocument): Promise<void>;
@@ -59,10 +60,28 @@ export class LiterateManager implements ILiterateManager {
         }
     }
 
-    private async extractCodeBlocks(_: vscode.TextDocument): Promise<DocumentBlock[]> {
-        // This is a placeholder. The actual implementation will need to use Pandoc service
-        // which will be injected or implemented separately
-        return [];
+    private async extractCodeBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
+        const pandocService = PandocService.getInstance();
+        try {
+            const ast = await pandocService.convertToAST(document);
+            const pandocBlocks = pandocService.extractCodeBlocks(ast);
+            
+            // Convert PandocCodeBlock to DocumentBlock
+            return pandocBlocks.map(block => ({
+                ...block,
+                location: {
+                    uri: document.uri,
+                    range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
+                    identifier: block.identifier
+                },
+                dependencies: new Set(block.references),
+                dependents: new Set(),
+                referenceRanges: []
+            }));
+        } catch (error) {
+            this.logger.error('Failed to extract code blocks', error instanceof Error ? error : new Error(String(error)));
+            throw error;
+        }
     }
 
     private clearDocumentBlocks(uri: string): void {

@@ -107,15 +107,20 @@ export class PandocService implements IPandocService {
         const extractFromBlock = (block: any): void => {
             if (block.t === 'CodeBlock') {
                 const [attributes, content] = block.c;
-                const [identifier, classes] = attributes;
+                // Pandoc AST format: [[identifier, classes, key-value-pairs], content]
+                const [[id, classes]] = attributes;
+                
+                // The identifier is in the format "#name" in the attributes
+                const identifier = id?.startsWith('#') ? id.slice(1) : id;
                 
                 if (identifier) {
+                    // Find references in the format <<name>>
                     const references = (content.match(/<<([^>]+)>>/g) || [])
                         .map((ref: string) => ref.slice(2, -2));
 
                     blocks.push({
                         identifier,
-                        language: classes[0] || '',
+                        language: classes?.[0]?.replace('.', '') || '',
                         content,
                         references
                     });
@@ -133,7 +138,7 @@ export class PandocService implements IPandocService {
             extractFromBlock(block);
         }
 
-        this.logger.info('Extracted code blocks', { count: blocks.length });
+        this.logger.debug('Extracted code blocks', { count: blocks.length });
         return blocks;
     }
 }
