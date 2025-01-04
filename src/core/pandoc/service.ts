@@ -119,7 +119,6 @@ export class PandocService {
                     if (identifier) {
                         this.logger.debug('PandocService::extractCodeBlocks::Found code block', { identifier });
                         
-                        // Find references in the format <<n>>
                         const references = Array.from(content.matchAll(PATTERNS.ALL_REFERENCES))
                             .map(match => match[1]);
 
@@ -128,6 +127,11 @@ export class PandocService {
                             language: classes?.[0]?.replace('.', '') || '',
                             content,
                             references
+                        });
+                        this.logger.debug('PandocService::extractCodeBlocks::Found references', { 
+                            identifier,
+                            references,
+                            lastBlock: blocks[blocks.length - 1]
                         });
                     }
                 } else if (Array.isArray(block.c)) {

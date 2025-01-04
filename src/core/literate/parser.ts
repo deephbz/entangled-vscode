@@ -41,6 +41,7 @@ export class LiterateParser implements ILiterateParser {
                     continue;
                 }
 
+                this.logger.debug('parseDocumentAndDecorateBlocks:: pandocBlock ', { block });
                 const references = this.findReferences(document, block);
                 documentBlocks.push({
                     ...block,
@@ -49,6 +50,7 @@ export class LiterateParser implements ILiterateParser {
                     dependencies: new Set<string>(block.references),
                     dependents: new Set<string>()
                 });
+                this.logger.debug('parseDocumentAndDecorateBlocks:: docBlock ', { lastDocBlock: documentBlocks[documentBlocks.length - 1] });
             }
 
             this.logger.debug('LiterateParser::parseDocument::Document parsing completed', {

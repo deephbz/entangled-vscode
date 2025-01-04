@@ -48,6 +48,8 @@ graph TD
 
 ### 2.2 Key Components
 
+Flow: DocumentManager parse -> PandocService -> PandocBlocks -> Decorate to become DocumentBlocks -> update dependencies
+
 #### Extension Entry Point (`extension.ts`)
 - Manages extension lifecycle
 - Initializes core services
