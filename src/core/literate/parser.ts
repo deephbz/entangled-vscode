@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { PandocCodeBlock, DocumentBlock, CodeBlockLocation } from './entities';
 import { DocumentParseError } from '../../utils/errors';
+import { LiteratePatterns } from './patterns';
 
 /**
  * Interface for parsing literate programming documents
@@ -86,10 +87,10 @@ export class LiterateParser implements ILiterateParser {
                 
                 if (line.startsWith('```')) {
                     if (!inCodeBlock) {
-                        const match = line.match(/^```\s*\{([^}]*)\}/);
+                        const match = line.match(LiteratePatterns.codeBlockDefinition);
                         if (match) {
                             const attributes = match[1];
-                            const idMatch = attributes.match(/#([^\s}]+)/);
+                            const idMatch = attributes.match(LiteratePatterns.identifierExtractor);
                             if (idMatch && idMatch[1] === block.identifier) {
                                 startLine = i;
                                 blockStartPos = lineStart;
@@ -145,33 +146,23 @@ export class LiterateParser implements ILiterateParser {
 
         const ranges: vscode.Range[] = [];
         const text = document.getText();
+        const pattern = LiteratePatterns.codeBlockReference;
+        let match;
 
-        try {
-            for (const ref of block.references) {
-                const pattern = new RegExp(`<<${ref}>>`, 'g');
-                let match;
-                
-                while ((match = pattern.exec(text)) !== null) {
-                    const startPos = document.positionAt(match.index);
-                    const endPos = document.positionAt(match.index + match[0].length);
-                    ranges.push(new vscode.Range(startPos, endPos));
-                }
+        while ((match = pattern.exec(text)) !== null) {
+            const ref = match[1];
+            if (ref === block.identifier) {
+                const startPos = document.positionAt(match.index);
+                const endPos = document.positionAt(match.index + match[0].length);
+                ranges.push(new vscode.Range(startPos, endPos));
             }
-
-            this.logger.debug('References found', {
-                identifier: block.identifier,
-                count: ranges.length
-            });
-
-            return ranges;
-        } catch (error) {
-            this.logger.error('Error finding references', 
-                error instanceof Error ? error : new Error(String(error)),
-                {
-                    identifier: block.identifier
-                }
-            );
-            return [];
         }
+
+        this.logger.debug('References found', {
+            identifier: block.identifier,
+            count: ranges.length
+        });
+
+        return ranges;
     }
 }

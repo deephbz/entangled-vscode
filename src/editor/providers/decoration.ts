@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
+import { ILiterateManager } from '../../core/literate/manager';
+import { LiteratePatterns } from '../../core/literate/patterns';
 import { LANGUAGE } from '../../utils/constants';
 
 /**
@@ -114,22 +116,22 @@ export class DecorationProvider {
             this.activeEditor.setDecorations(this.referenceDecorationType, []);
 
             const text = this.activeEditor.document.getText();
-            const definitionRegex = /^```\s*\{[^}]*#([^\s\}]+)[^}]*\}/gm;
-            const referenceRegex = /<<([^>]+)>>/g;
-
             const definitionRanges: vscode.Range[] = [];
             const referenceRanges: vscode.Range[] = [];
 
-            // Find definitions
             let match;
-            while ((match = definitionRegex.exec(text))) {
+
+            // Find and decorate code block definitions
+            while ((match = LiteratePatterns.codeBlockDefinition.exec(text))) {
+                const identifier = match[2];
                 const startPos = this.activeEditor.document.positionAt(match.index);
                 const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
                 definitionRanges.push(new vscode.Range(startPos, endPos));
             }
 
-            // Find references
-            while ((match = referenceRegex.exec(text))) {
+            // Find and decorate code block references
+            while ((match = LiteratePatterns.codeBlockReference.exec(text))) {
+                const identifier = match[1];
                 const startPos = this.activeEditor.document.positionAt(match.index);
                 const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
                 referenceRanges.push(new vscode.Range(startPos, endPos));

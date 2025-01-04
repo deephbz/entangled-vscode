@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
+import { ILiterateManager } from '../../core/literate/manager';
+import { LiteratePatterns } from '../../core/literate/patterns';
 
 /**
  * Provides definition lookup for literate programming references
  */
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
-    private documentManager: LiterateManager;
+    private documentManager: ILiterateManager;
     private logger: Logger;
 
     constructor() {
@@ -19,7 +21,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position,
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Definition> {
-        const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        const range = document.getWordRangeAtPosition(position, LiteratePatterns.reference);
         if (!range) return null;
 
         const text = document.getText(range);
@@ -33,7 +35,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
  * Provides reference lookup for literate programming blocks
  */
 export class EntangledReferenceProvider implements vscode.ReferenceProvider {
-    private documentManager: LiterateManager;
+    private documentManager: ILiterateManager;
     private logger: Logger;
 
     constructor() {
@@ -47,7 +49,7 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         _context: vscode.ReferenceContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.Location[]> {
-        const range = document.getWordRangeAtPosition(position, /(?:#[^\s\}]+)|(?:<<[^>]+>>)/);
+        const range = document.getWordRangeAtPosition(position, LiteratePatterns.referenceOrDefinition);
         if (!range) {
             return [];
         }
@@ -73,7 +75,7 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
  * Provides hover information for literate programming blocks
  */
 export class EntangledHoverProvider implements vscode.HoverProvider {
-    private documentManager: LiterateManager;
+    private documentManager: ILiterateManager;
     private logger: Logger;
 
     constructor() {
@@ -86,12 +88,12 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
         // Check for reference format <<identifier>>
-        let range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        let range = document.getWordRangeAtPosition(position, LiteratePatterns.reference);
         let isReference = true;
 
         // If not found, check for definition format #identifier
         if (!range) {
-            range = document.getWordRangeAtPosition(position, /#[^\s\}]+/);
+            range = document.getWordRangeAtPosition(position, LiteratePatterns.definition);
             isReference = false;
         }
 
@@ -140,7 +142,7 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
     ): Promise<vscode.DocumentSymbol[]> {
         const text = document.getText();
         const symbols: vscode.DocumentSymbol[] = [];
-        const pattern = /^```\s*\{([^}]*#[^}\s]+)[^}]*\}/gm;
+        const pattern = LiteratePatterns.codeBlockDefinition;
         
         let match;
         while ((match = pattern.exec(text)) !== null) {
