@@ -38,21 +38,21 @@ export class LiterateManager implements ILiterateManager {
         this.logger.debug('manager::parseDocument::Parsing', { uri });
         
         try {
-            const blocks = await this.extractCodeBlocks(document);
+            const newDocBlocks = await this.extractCodeBlocks(document);
             
-            if (blocks.length === 0) {
+            if (newDocBlocks.length === 0) {
                 this.logger.debug('manager::parseDocument::No code blocks found', { uri });
                 return;
             }
             
-            this.logger.debug('manager::parseDocument::Code blocks extracted', { count: blocks.length });
+            this.logger.debug('manager::parseDocument::Code blocks extracted', { count: newDocBlocks.length });
             
             // Clear existing blocks for this document
             this.clearDocumentBlocks(uri);
             
             // Process and add new blocks
             try {
-                const processedBlocks = this.parser.parseDocument(document, blocks);
+                const processedBlocks = this.parser.parseDocument(document, newDocBlocks);
                 this.logger.debug('manager::parseDocument::Blocks processed', { 
                     totalBlocks: processedBlocks.length,
                     withIdentifiers: processedBlocks.filter(b => b.identifier).length
