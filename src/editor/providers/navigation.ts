@@ -3,6 +3,7 @@ import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
 import { ILiterateManager } from '../../core/literate/manager';
 import { LiteratePatterns } from '../../core/literate/patterns';
+import { CodeBlockType } from '../../core/literate/types';
 
 /**
  * Provides definition lookup for literate programming references
@@ -16,31 +17,29 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         this.logger = Logger.getInstance();
     }
 
-    provideDefinition(
+    async provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
         _token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.Definition> {
-        const range = document.getWordRangeAtPosition(position, LiteratePatterns.reference);
+    ): Promise<vscode.Definition | null> {
+        const range = document.getWordRangeAtPosition(position, LiteratePatterns.codeBlockReference);
         if (!range) return null;
 
         const text = document.getText(range);
-        const identifier = text.substring(2, text.length - 2); // Remove << and >>
-        this.logger.debug('Providing definition', { identifier });
-        return this.documentManager.findDefinition(identifier);
-    }
-}
+        const match = text.match(LiteratePatterns.codeBlockReference);
+        if (!match) return null;
 
-/**
- * Provides reference lookup for literate programming blocks
- */
-export class EntangledReferenceProvider implements vscode.ReferenceProvider {
-    private documentManager: ILiterateManager;
-    private logger: Logger;
+        const identifier = match[1];
+        const blocks = await this.documentManager.getBlocksByIdentifier(identifier);
+        
+        if (!blocks || blocks.length === 0) return null;
 
-    constructor() {
-        this.documentManager = LiterateManager.getInstance();
-        this.logger = Logger.getInstance();
+        return blocks
+            .filter(block => block.type === CodeBlockType.Referable || block.type === CodeBlockType.File)
+            .map(block => new vscode.Location(
+                document.uri,
+                new vscode.Range(block.location.start, block.location.end)
+            ));
     }
 
     async provideReferences(
@@ -49,25 +48,49 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         _context: vscode.ReferenceContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.Location[]> {
-        const range = document.getWordRangeAtPosition(position, LiteratePatterns.referenceOrDefinition);
-        if (!range) {
-            return [];
+        // Check if we're on a reference or definition
+        const refRange = document.getWordRangeAtPosition(position, LiteratePatterns.codeBlockReference);
+        const defRange = document.getWordRangeAtPosition(position, LiteratePatterns.identifierExtractor);
+        
+        if (!refRange && !defRange) return [];
+
+        let identifier: string | null = null;
+        
+        if (refRange) {
+            const text = document.getText(refRange);
+            const match = text.match(LiteratePatterns.codeBlockReference);
+            if (match) identifier = match[1];
+        } else if (defRange) {
+            const text = document.getText(defRange);
+            const match = text.match(LiteratePatterns.identifierExtractor);
+            if (match) identifier = match[1];
         }
 
-        const word = document.getText(range);
-        let identifier = word;
+        if (!identifier) return [];
 
-        // Handle both reference (<<id>>) and definition (#id) formats
-        if (word.startsWith('<<')) {
-            identifier = word.substring(2, word.length - 2);
-        } else if (word.startsWith('#')) {
-            identifier = word.substring(1);
-        } else {
-            return [];
-        }
+        const blocks = await this.documentManager.getBlocksByIdentifier(identifier);
+        if (!blocks || blocks.length === 0) return [];
 
-        this.logger.debug('Providing references', { identifier });
-        return this.documentManager.findReferences(identifier);
+        const locations: vscode.Location[] = [];
+
+        // Add definitions
+        blocks.forEach(block => {
+            if (block.type === CodeBlockType.Referable || block.type === CodeBlockType.File) {
+                locations.push(new vscode.Location(
+                    document.uri,
+                    new vscode.Range(block.location.start, block.location.end)
+                ));
+            }
+        });
+
+        // Add references
+        blocks.forEach(block => {
+            block.referenceRanges.forEach(range => {
+                locations.push(new vscode.Location(document.uri, range));
+            });
+        });
+
+        return locations;
     }
 }
 
@@ -88,12 +111,12 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
         // Check for reference format <<identifier>>
-        let range = document.getWordRangeAtPosition(position, LiteratePatterns.reference);
+        let range = document.getWordRangeAtPosition(position, LiteratePatterns.codeBlockReference);
         let isReference = true;
 
         // If not found, check for definition format #identifier
         if (!range) {
-            range = document.getWordRangeAtPosition(position, LiteratePatterns.definition);
+            range = document.getWordRangeAtPosition(position, LiteratePatterns.identifierExtractor);
             isReference = false;
         }
 
@@ -105,19 +128,23 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         let identifier: string;
 
         if (isReference) {
-            identifier = word.substring(2, word.length - 2); // Remove << and >>
+            const match = word.match(LiteratePatterns.codeBlockReference);
+            if (match) identifier = match[1];
         } else {
-            identifier = word.substring(1); // Remove #
+            const match = word.match(LiteratePatterns.identifierExtractor);
+            if (match) identifier = match[1];
         }
+
+        if (!identifier) return undefined;
 
         try {
             const content = this.documentManager.getExpandedContent(identifier);
-            const locations = this.documentManager.findDefinition(identifier);
+            const locations = await this.documentManager.getBlocksByIdentifier(identifier);
 
             let message = new vscode.MarkdownString();
             if (locations.length > 0) {
                 const loc = locations[0];
-                message.appendMarkdown(`**Definition**: ${loc.uri.fsPath}:${loc.range.start.line + 1}\n\n`);
+                message.appendMarkdown(`**Definition**: ${loc.location.start.line + 1}\n\n`);
             }
             message.appendCodeblock(content);
 

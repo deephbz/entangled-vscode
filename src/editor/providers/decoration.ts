@@ -3,6 +3,7 @@ import { Logger } from '../../utils/logger';
 import { ILiterateManager } from '../../core/literate/manager';
 import { LiteratePatterns } from '../../core/literate/patterns';
 import { LANGUAGE } from '../../utils/constants';
+import { CodeBlockType } from '../../core/literate/types';
 
 /**
  * Manages decorations for literate programming elements in the editor
@@ -14,9 +15,11 @@ export class DecorationProvider {
     private referenceDecorationType: vscode.TextEditorDecorationType;
     private activeEditor?: vscode.TextEditor;
     private timeout?: NodeJS.Timeout;
+    private literateManager: ILiterateManager;
 
     private constructor() {
         this.logger = Logger.getInstance();
+        this.literateManager = ILiterateManager.getInstance();
 
         this.definitionDecorationType = vscode.window.createTextEditorDecorationType({
             backgroundColor: { id: 'entangled.definitionBackground' },
@@ -98,42 +101,33 @@ export class DecorationProvider {
     }
 
     private async updateDecorations(): Promise<void> {
-        if (!this.activeEditor || this.activeEditor.document.languageId !== LANGUAGE.ID) {
-            this.logger.debug('Skipping decoration update for non-markdown document', {
-                uri: this.activeEditor?.document.uri.toString(),
-                languageId: this.activeEditor?.document.languageId
-            });
+        if (!this.activeEditor) {
             return;
         }
 
-        this.logger.debug('Updating decorations', {
-            uri: this.activeEditor.document.uri.toString()
-        });
+        const document = this.activeEditor.document;
+        const text = document.getText();
+        const definitionRanges: vscode.Range[] = [];
+        const referenceRanges: vscode.Range[] = [];
+        let match;
 
         try {
-            // Clear existing decorations
-            this.activeEditor.setDecorations(this.definitionDecorationType, []);
-            this.activeEditor.setDecorations(this.referenceDecorationType, []);
-
-            const text = this.activeEditor.document.getText();
-            const definitionRanges: vscode.Range[] = [];
-            const referenceRanges: vscode.Range[] = [];
-
-            let match;
-
             // Find and decorate code block definitions
             while ((match = LiteratePatterns.codeBlockDefinition.exec(text))) {
-                const identifier = match[2];
-                const startPos = this.activeEditor.document.positionAt(match.index);
-                const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
-                definitionRanges.push(new vscode.Range(startPos, endPos));
+                const attributes = match[1];
+                const properties = this.literateManager.parseCodeBlockProperties(attributes);
+                
+                if (properties.type === CodeBlockType.Referable || properties.type === CodeBlockType.File) {
+                    const startPos = document.positionAt(match.index);
+                    const endPos = document.positionAt(match.index + match[0].length);
+                    definitionRanges.push(new vscode.Range(startPos, endPos));
+                }
             }
 
             // Find and decorate code block references
             while ((match = LiteratePatterns.codeBlockReference.exec(text))) {
-                const identifier = match[1];
-                const startPos = this.activeEditor.document.positionAt(match.index);
-                const endPos = this.activeEditor.document.positionAt(match.index + match[0].length);
+                const startPos = document.positionAt(match.index);
+                const endPos = document.positionAt(match.index + match[0].length);
                 referenceRanges.push(new vscode.Range(startPos, endPos));
             }
 
@@ -142,14 +136,13 @@ export class DecorationProvider {
             this.activeEditor.setDecorations(this.referenceDecorationType, referenceRanges);
 
             this.logger.debug('Decorations updated', {
-                uri: this.activeEditor.document.uri.toString(),
                 definitions: definitionRanges.length,
                 references: referenceRanges.length
             });
         } catch (error) {
-            this.logger.error('Error updating decorations', error instanceof Error ? error : new Error(String(error)), {
-                uri: this.activeEditor.document.uri.toString()
-            });
+            this.logger.error('Error updating decorations',
+                error instanceof Error ? error : new Error(String(error))
+            );
         }
     }
 

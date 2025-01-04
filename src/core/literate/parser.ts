@@ -3,6 +3,7 @@ import { Logger } from '../../utils/logger';
 import { PandocCodeBlock, DocumentBlock, CodeBlockLocation } from './entities';
 import { DocumentParseError } from '../../utils/errors';
 import { LiteratePatterns } from './patterns';
+import { CodeBlockType, CodeBlockProperties } from './types';
 
 /**
  * Interface for parsing literate programming documents
@@ -21,6 +22,63 @@ export class LiterateParser implements ILiterateParser {
 
     constructor() {
         this.logger = Logger.getInstance();
+    }
+
+    private parseCodeBlockProperties(attributes: string): CodeBlockProperties {
+        const properties: CodeBlockProperties = {
+            additionalClasses: [],
+            attributes: new Map(),
+            type: CodeBlockType.Ignored
+        };
+
+        // Extract identifier
+        const idMatch = attributes.match(LiteratePatterns.identifierExtractor);
+        if (idMatch) {
+            properties.identifier = idMatch[1];
+        }
+
+        // Extract language (first class)
+        const langMatch = attributes.match(LiteratePatterns.languageExtractor);
+        if (langMatch) {
+            properties.language = langMatch[1];
+        }
+
+        // Extract file path
+        const fileMatch = attributes.match(LiteratePatterns.fileExtractor);
+        if (fileMatch) {
+            properties.filePath = fileMatch[1];
+        }
+
+        // Extract additional classes (after first)
+        let classMatch;
+        let firstClassFound = false;
+        const classPattern = LiteratePatterns.classExtractor;
+        while ((classMatch = classPattern.exec(attributes)) !== null) {
+            if (!firstClassFound) {
+                firstClassFound = true;
+                continue;
+            }
+            properties.additionalClasses.push(classMatch[1]);
+        }
+
+        // Extract key-value attributes
+        let attrMatch;
+        while ((attrMatch = LiteratePatterns.attributeExtractor.exec(attributes)) !== null) {
+            properties.attributes.set(attrMatch[1], attrMatch[2]);
+        }
+
+        // Determine block type
+        if (properties.language) {
+            if (properties.identifier) {
+                properties.type = CodeBlockType.Referable;
+            } else if (properties.filePath) {
+                properties.type = CodeBlockType.File;
+                // Use file path as identifier if not specified
+                properties.identifier = properties.identifier || properties.filePath;
+            }
+        }
+
+        return properties;
     }
 
     public parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
@@ -89,30 +147,20 @@ export class LiterateParser implements ILiterateParser {
                     if (!inCodeBlock) {
                         const match = line.match(LiteratePatterns.codeBlockDefinition);
                         if (match) {
-                            const attributes = match[1];
-                            const idMatch = attributes.match(LiteratePatterns.identifierExtractor);
-                            if (idMatch && idMatch[1] === block.identifier) {
+                            const properties = this.parseCodeBlockProperties(match[1]);
+                            if (properties.identifier === block.identifier) {
                                 startLine = i;
                                 blockStartPos = lineStart;
                                 inCodeBlock = true;
                             }
                         }
                     } else {
-                        // Found the end of the code block
                         if (startLine !== -1) {
-                            const startPos = document.positionAt(blockStartPos);
-                            const endPos = document.positionAt(lineStart + line.length);
-                            
-                            this.logger.debug('Block location found', {
-                                identifier: block.identifier,
-                                startLine: startLine,
-                                endLine: i
-                            });
-                            
                             return {
-                                uri: document.uri,
-                                range: new vscode.Range(startPos, endPos),
-                                identifier: block.identifier
+                                start: document.positionAt(blockStartPos),
+                                end: document.positionAt(lineStart + line.length),
+                                contentStart: document.positionAt(text.indexOf('\n', blockStartPos) + 1),
+                                contentEnd: document.positionAt(lineStart)
                             };
                         }
                         inCodeBlock = false;
@@ -120,20 +168,12 @@ export class LiterateParser implements ILiterateParser {
                 }
             }
 
-            this.logger.debug('Block location not found', {
-                identifier: block.identifier
-            });
             return null;
         } catch (error) {
-            if (error instanceof Error) {
-                this.logger.error('Error finding block location', error, {
-                    identifier: block.identifier
-                });
-            } else {
-                this.logger.error('Error finding block location', new Error(String(error)), {
-                    identifier: block.identifier
-                });
-            }
+            this.logger.error('Error finding block location',
+                error instanceof Error ? error : new Error(String(error)),
+                { identifier: block.identifier }
+            );
             return null;
         }
     }

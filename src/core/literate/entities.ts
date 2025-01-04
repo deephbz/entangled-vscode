@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { CodeBlockType, CodeBlockProperties } from './types';
 
 /**
  * Represents a code block in a Pandoc document
@@ -8,15 +9,18 @@ export interface PandocCodeBlock {
     language: string;
     content: string;
     references: string[];
+    type: CodeBlockType;
+    properties: CodeBlockProperties;
 }
 
 /**
  * Location information for a code block within a document
  */
 export interface CodeBlockLocation {
-    uri: vscode.Uri;
-    range: vscode.Range;
-    identifier: string;
+    start: vscode.Position;
+    end: vscode.Position;
+    contentStart: vscode.Position;
+    contentEnd: vscode.Position;
 }
 
 /**

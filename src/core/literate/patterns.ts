@@ -6,16 +6,18 @@ import { ILiteratePatterns } from './types';
 export const LiteratePatterns: ILiteratePatterns = {
     /**
      * Matches code block definitions with attributes
-     * Example: ```{.c #identifier-name .py .extra-class-name key="value"}
+     * Example: ``` {.rust #hello-rust .extra-class key="value"}
      * Groups:
      * 1. Full attributes string
-     * 2. Identifier name
+     * 2. Identifier name (if present)
+     * 3. Language class (first class in attributes)
+     * 4. File path (if present)
      */
-    codeBlockDefinition: /^```\s*\{([^}]*#([^\s\}]+)[^}]*)\}/gm,
+    codeBlockDefinition: /^```\s*\{([^}]*?(?:#([^\s\}]+))?[^}]*?(?:\.[a-zA-Z0-9_-]+(?:\s|$))?[^}]*?(?:file=([^\s\}]+))?[^}]*)\}/gm,
 
     /**
      * Matches code block references
-     * Example: <<identifier-name>>
+     * Example: <<hello-rust>>
      * Groups:
      * 1. Identifier name
      */
@@ -27,10 +29,10 @@ export const LiteratePatterns: ILiteratePatterns = {
      * Groups:
      * 1. Identifier name
      */
-    identifierExtractor: /#([^\s}]+)/,
+    identifierExtractor: /#([^\s\}]+)/,
 
     /**
-     * Extracts language from attributes string
+     * Extracts first class as language from attributes string
      * Example: {.python #identifier-name}
      * Groups:
      * 1. Language name
@@ -38,11 +40,27 @@ export const LiteratePatterns: ILiteratePatterns = {
     languageExtractor: /\.([a-zA-Z0-9_-]+)(?:\s|$)/,
 
     /**
+     * Extracts file path from attributes
+     * Example: file=src/main.rs
+     * Groups:
+     * 1. File path
+     */
+    fileExtractor: /file=([^\s\}]+)/,
+
+    /**
      * Extracts key-value attributes
      * Example: key="value"
      * Groups:
      * 1. Key
-     * 2. Value
+     * 2. Value (without quotes)
      */
-    attributeExtractor: /([a-zA-Z0-9_-]+)="([^"]*)"/g
+    attributeExtractor: /([a-zA-Z0-9_-]+)="([^"]*)"/g,
+
+    /**
+     * Extracts additional classes (after the first language class)
+     * Example: .extra-class-name
+     * Groups:
+     * 1. Class name
+     */
+    classExtractor: /\.([a-zA-Z0-9_-]+)(?:\s|$)/g
 };
