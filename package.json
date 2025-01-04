@@ -24,6 +24,16 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "configuration": {
+      "title": "EntangleD",
+      "properties": {
+        "entangled.debugLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging for EntangleD extension"
+        }
+      }
+    },
     "grammars": [
       {
         "language": "entangled-markdown",

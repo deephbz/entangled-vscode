@@ -22,41 +22,85 @@ export class ExtensionActivator {
     }
 
     /**
+     * Register all providers for the extension
+     */
+    private registerProviders(context: vscode.ExtensionContext): void {
+        this.logger.debug('Registering providers');
+        
+        try {
+            context.subscriptions.push(
+                vscode.languages.registerDefinitionProvider(
+                    { scheme: 'file', language: 'entangled-markdown' },
+                    new EntangledDefinitionProvider()
+                ),
+                vscode.languages.registerReferenceProvider(
+                    { scheme: 'file', language: 'entangled-markdown' },
+                    new EntangledReferenceProvider()
+                ),
+                vscode.languages.registerHoverProvider(
+                    { scheme: 'file', language: 'entangled-markdown' },
+                    new EntangledHoverProvider()
+                ),
+                vscode.languages.registerDocumentSymbolProvider(
+                    { scheme: 'file', language: 'entangled-markdown' },
+                    new EntangledDocumentSymbolProvider()
+                )
+            );
+            
+            this.logger.debug('Providers registered successfully');
+        } catch (error) {
+            this.logger.error('Failed to register providers', error instanceof Error ? error : new Error(String(error)));
+            throw error;
+        }
+    }
+
+    /**
+     * Register all commands for the extension
+     */
+    private registerCommands(context: vscode.ExtensionContext): void {
+        this.logger.debug('Registering commands');
+        
+        try {
+            this.commandHandler.register(context);
+            this.logger.debug('Commands registered successfully');
+        } catch (error) {
+            this.logger.error('Failed to register commands', error instanceof Error ? error : new Error(String(error)));
+            throw error;
+        }
+    }
+
+    /**
      * Activate the extension
      */
     public activate(context: vscode.ExtensionContext): void {
-        this.logger.info('Activating EntangleD extension');
+        this.logger.debug('Starting extension activation', {
+            workspace: vscode.workspace.name,
+            extensionMode: context.extensionMode
+        });
 
-        // Register providers
-        context.subscriptions.push(
-            vscode.languages.registerDefinitionProvider(
-                { scheme: 'file', language: 'markdown' },
-                new EntangledDefinitionProvider()
-            ),
-            vscode.languages.registerReferenceProvider(
-                { scheme: 'file', language: 'markdown' },
-                new EntangledReferenceProvider()
-            ),
-            vscode.languages.registerHoverProvider(
-                { scheme: 'file', language: 'markdown' },
-                new EntangledHoverProvider()
-            ),
-            vscode.languages.registerDocumentSymbolProvider(
-                { scheme: 'file', language: 'markdown' },
-                new EntangledDocumentSymbolProvider()
-            )
-        );
+        try {
+            // Register providers
+            this.registerProviders(context);
+            
+            // Register commands
+            this.registerCommands(context);
+            
+            // Activate decoration provider
+            this.decorationProvider.activate(context);
+            this.logger.debug('Decoration provider activated');
 
-        // Activate decoration provider
-        this.decorationProvider.activate(context);
-
-        // Register commands
-        this.commandHandler.register(context);
+            this.logger.debug('Extension components activated successfully');
+        } catch (error) {
+            this.logger.error('Failed to activate extension components', 
+                error instanceof Error ? error : new Error(String(error))
+            );
+            throw error;
+        }
 
         // Setup document change handling
         vscode.workspace.onDidChangeTextDocument(
             event => {
-                if (event.document.languageId === 'markdown') {
+                if (event.document.languageId === 'entangled-markdown') {
                     this.documentManager.parseDocument(event.document)
                         .catch(error => this.logger.error('Failed to parse document on change', error));
                 }
@@ -67,7 +111,7 @@ export class ExtensionActivator {
 
         vscode.workspace.onDidOpenTextDocument(
             document => {
-                if (document.languageId === 'markdown') {
+                if (document.languageId === 'entangled-markdown') {
                     this.documentManager.parseDocument(document)
                         .catch(error => this.logger.error('Failed to parse document on open', error));
                 }

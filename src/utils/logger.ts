@@ -5,6 +5,7 @@ export interface LogEntry {
     level: 'info' | 'warn' | 'error' | 'debug';
     message: string;
     data?: Record<string, unknown>;
+    error?: Error;
 }
 
 export class Logger {
@@ -22,17 +23,35 @@ export class Logger {
         return Logger.instance;
     }
 
-    private formatLogEntry(entry: LogEntry): string {
-        const dataStr = entry.data ? ` | ${JSON.stringify(entry.data)}` : '';
-        return `[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}${dataStr}`;
+    private get isDebugEnabled(): boolean {
+        return vscode.workspace.getConfiguration('entangled').get('debugLogging', false);
     }
 
-    private log(level: LogEntry['level'], message: string, data?: Record<string, unknown>): void {
+    private formatLogEntry(entry: LogEntry): string {
+        let message = `[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`;
+        
+        if (entry.data) {
+            message += ` | ${JSON.stringify(entry.data)}`;
+        }
+        
+        if (entry.error) {
+            message += `\n${entry.error.stack || entry.error.message}`;
+        }
+        
+        return message;
+    }
+
+    private log(level: LogEntry['level'], message: string, error?: Error, data?: Record<string, unknown>): void {
+        if (level === 'debug' && !this.isDebugEnabled) {
+            return;
+        }
+
         const entry: LogEntry = {
             timestamp: new Date().toISOString(),
             level,
             message,
-            data
+            data,
+            error
         };
 
         const formattedMessage = this.formatLogEntry(entry);
@@ -40,31 +59,25 @@ export class Logger {
 
         if (level === 'error') {
             console.error(formattedMessage);
-        } else {
+        } else if (this.isDebugEnabled || level !== 'debug') {
             console.log(formattedMessage);
         }
     }
 
     public info(message: string, data?: Record<string, unknown>): void {
-        this.log('info', message, data);
+        this.log('info', message, undefined, data);
     }
 
     public warn(message: string, data?: Record<string, unknown>): void {
-        this.log('warn', message, data);
+        this.log('warn', message, undefined, data);
     }
 
     public error(message: string, error?: Error, data?: Record<string, unknown>): void {
-        const errorData = error ? {
-            ...data,
-            errorName: error.name,
-            errorMessage: error.message,
-            errorStack: error.stack
-        } : data;
-        this.log('error', message, errorData);
+        this.log('error', message, error, data);
     }
 
     public debug(message: string, data?: Record<string, unknown>): void {
-        this.log('debug', message, data);
+        this.log('debug', message, undefined, data);
     }
 
     public show(): void {
