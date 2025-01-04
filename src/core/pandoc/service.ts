@@ -112,29 +112,10 @@ export class PandocService {
                 if (block.t === 'CodeBlock') {
                     const [attributes, content] = block.c as PandocCodeBlockData;
                     const [[rawId, classes, keyVals]] = [attributes];
+                    this.logger.debug('PandocCodeBlock:: rawId, classes, keyValues = ', { rawId, classes, keyVals });
 
-                    // First check if there's a direct identifier
-                    let identifier = rawId?.startsWith('#') ? rawId.slice(1) : undefined;
-
-                    // If no direct identifier, look for it in key-value pairs
-                    if (!identifier && Array.isArray(keyVals)) {
-                        for (const [key, value] of keyVals) {
-                            if (key === 'id' || key === 'identifier') {
-                                identifier = value;
-                                break;
-                            }
-                        }
-                    }
-
-                    // If still no identifier, check the raw attributes string for #identifier
-                    if (!identifier) {
-                        const text = attributes.toString();
-                        const idMatch = text.match(PATTERNS.BLOCK_IDENTIFIER);
-                        if (idMatch) {
-                            identifier = idMatch[1];
-                        }
-                    }
-
+                    // check empty
+                    let identifier = rawId ? rawId : undefined;
                     if (identifier) {
                         this.logger.debug('PandocService::extractCodeBlocks::Found code block', { identifier });
                         
