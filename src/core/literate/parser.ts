@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { PandocCodeBlock, DocumentBlock, CodeBlockLocation } from './entities';
 import { DocumentParseError } from '../../utils/errors';
+import { PATTERNS } from '../../utils/constants';
 
 /**
  * Interface for parsing literate programming documents
@@ -86,10 +87,10 @@ export class LiterateParser implements ILiterateParser {
                 
                 if (line.startsWith('```')) {
                     if (!inCodeBlock) {
-                        const match = line.match(/^```\s*\{([^}]*)\}/);
+                        const match = line.match(PATTERNS.CODE_BLOCK_OPEN);
                         if (match) {
                             const attributes = match[1];
-                            const idMatch = attributes.match(/#([^\s}]+)/);
+                            const idMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
                             if (idMatch && idMatch[1] === block.identifier) {
                                 startLine = i;
                                 blockStartPos = lineStart;
@@ -148,7 +149,7 @@ export class LiterateParser implements ILiterateParser {
 
         try {
             for (const ref of block.references) {
-                const pattern = new RegExp(`<<${ref}>>`, 'g');
+                const pattern = PATTERNS.BLOCK_REFERENCE(ref);
                 let match;
                 
                 while ((match = pattern.exec(text)) !== null) {

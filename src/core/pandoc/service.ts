@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { PandocError } from '../../utils/errors';
-import { LANGUAGE } from '../../utils/constants';
+import { LANGUAGE, PATTERNS } from '../../utils/constants';
 import { PandocCodeBlock } from './types';
 import { spawn } from 'child_process';
 
@@ -108,7 +108,7 @@ export class PandocService {
                     
                     if (identifier) {
                         // Find references in the format <<name>>
-                        const references = (content.match(/<<([^>]+)>>/g) || [])
+                        const references = (content.match(PATTERNS.ALL_REFERENCES) || [])
                             .map((ref: string) => ref.slice(2, -2));
 
                         blocks.push({

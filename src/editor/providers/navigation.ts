@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
+import { PATTERNS } from '../../utils/constants';
 
 /**
  * Provides definition lookup for literate programming references
@@ -19,7 +20,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position,
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.Definition> {
-        const range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        const range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE);
         if (!range) return null;
 
         const text = document.getText(range);
@@ -47,7 +48,7 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         _context: vscode.ReferenceContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.Location[]> {
-        const range = document.getWordRangeAtPosition(position, /(?:#[^\s\}]+)|(?:<<[^>]+>>)/);
+        const range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE_OR_DEFINITION);
         if (!range) {
             return [];
         }
@@ -86,12 +87,12 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
         // Check for reference format <<identifier>>
-        let range = document.getWordRangeAtPosition(position, /<<[^>]+>>/);
+        let range = document.getWordRangeAtPosition(position, PATTERNS.REFERENCE);
         let isReference = true;
 
         // If not found, check for definition format #identifier
         if (!range) {
-            range = document.getWordRangeAtPosition(position, /#[^\s\}]+/);
+            range = document.getWordRangeAtPosition(position, PATTERNS.DEFINITION);
             isReference = false;
         }
 
@@ -140,13 +141,13 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
     ): Promise<vscode.DocumentSymbol[]> {
         const text = document.getText();
         const symbols: vscode.DocumentSymbol[] = [];
-        const pattern = /^```\s*\{([^}]*#[^}\s]+)[^}]*\}/gm;
+        const pattern = PATTERNS.CODE_BLOCK;
         
         let match;
         while ((match = pattern.exec(text)) !== null) {
             const startPos = document.positionAt(match.index);
             const attributes = match[1];
-            const idMatch = attributes.match(/#([^\s}]+)/);
+            const idMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
             
             if (idMatch) {
                 const identifier = idMatch[1];
