@@ -142,8 +142,7 @@
     ]
   },
   "activationEvents": [
-    "onLanguage:markdown",
-    "onLanguage:entangled-markdown"
+    "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
   "scripts": {

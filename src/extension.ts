@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from './core/literate/manager';
-import { EntangledDefinitionProvider, EntangledReferenceProvider, EntangledHoverProvider, EntangledDocumentSymbolProvider } from './editor/providers/navigation';
+// import { EntangledDefinitionProvider, EntangledReferenceProvider, EntangledHoverProvider, EntangledDocumentSymbolProvider } from './editor/providers/navigation';
 import { DecorationProvider } from './editor/providers/decoration';
 import { ExtensionActivator } from './editor/activation';
 import { Logger } from './utils/logger';
-import { PandocError } from './utils/errors';
-import { ParseError } from './utils/errors';
+import { PandocError, DocumentParseError } from './utils/errors';
 
 // Extension Output Channel
 const logger = Logger.getInstance();
@@ -52,7 +51,7 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
                 uri: document.uri.toString()
             });
             vscode.window.showErrorMessage('Failed to process document: Pandoc error');
-        } else if (error instanceof ParseError) {
+        } else if (error instanceof DocumentParseError) {
             logger.error('Document parsing failed', error, {
                 uri: document.uri.toString()
             });
