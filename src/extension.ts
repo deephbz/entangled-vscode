@@ -15,9 +15,15 @@ const isMarkdownDocument = (document: vscode.TextDocument): boolean =>
     document.languageId === LANGUAGE.ID;
 
 const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
-    // Early exit checks with debug logs
-    if (document.uri.scheme === 'output') {
-        logger.debug('Skipping output document', { uri: document.uri.toString() });
+    // Skip non-file documents and output channels
+    if (document.uri.scheme !== 'file') {
+        // Only log for non-output schemes to avoid recursion
+        if (document.uri.scheme !== 'output') {
+            logger.debug('Skipping non-file document', { 
+                uri: document.uri.toString(),
+                scheme: document.uri.scheme 
+            });
+        }
         return;
     }
     

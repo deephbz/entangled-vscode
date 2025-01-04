@@ -54,9 +54,15 @@ export class DecorationProvider {
         // Register event handlers
         context.subscriptions.push(
             vscode.window.onDidChangeActiveTextEditor(editor => {
+                if (editor?.document.uri.scheme !== 'file') {
+                    return;
+                }
+                
                 this.logger.debug('Active editor changed', {
-                    uri: editor?.document.uri.toString()
+                    uri: editor?.document.uri.toString(),
+                    languageId: editor?.document.languageId
                 });
+                
                 this.activeEditor = editor;
                 if (editor) {
                     this.triggerUpdateDecorations();
@@ -64,6 +70,10 @@ export class DecorationProvider {
             }),
 
             vscode.workspace.onDidChangeTextDocument(event => {
+                if (event.document.uri.scheme !== 'file') {
+                    return;
+                }
+                
                 if (this.activeEditor && event.document === this.activeEditor.document) {
                     this.logger.debug('Document changed', {
                         uri: event.document.uri.toString(),
