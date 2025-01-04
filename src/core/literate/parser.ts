@@ -1,16 +1,27 @@
 import * as vscode from 'vscode';
-import { PandocCodeBlock } from '../pandoc/types';
-import { DocumentBlock, CodeBlockLocation } from './types';
-import { Logger } from '../utils/logger';
+import { Logger } from '../../utils/logger';
+import { PandocCodeBlock, DocumentBlock, CodeBlockLocation } from './entities';
 
-export class DocumentProcessor {
+/**
+ * Interface for parsing literate programming documents
+ */
+export interface ILiterateParser {
+    parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[];
+    findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null;
+    findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[];
+}
+
+/**
+ * Default implementation of the literate programming parser
+ */
+export class LiterateParser implements ILiterateParser {
     private logger: Logger;
 
     constructor() {
         this.logger = Logger.getInstance();
     }
 
-    private findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
+    public findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
         this.logger.debug('Finding block location', { identifier: block.identifier });
         const text = document.getText();
         const lines = text.split('\n');
@@ -53,7 +64,7 @@ export class DocumentProcessor {
         return null;
     }
 
-    private findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[] {
+    public findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[] {
         const text = document.getText();
         const ranges: vscode.Range[] = [];
         const refRegex = new RegExp(`<<${block.identifier}>>`, 'g');
@@ -68,7 +79,7 @@ export class DocumentProcessor {
         return ranges;
     }
 
-    public processBlocks(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
+    public parseDocument(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[] {
         const processedBlocks: DocumentBlock[] = [];
         const referenceMap = new Map<string, Set<string>>();
 

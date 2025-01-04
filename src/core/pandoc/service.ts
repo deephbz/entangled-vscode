@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { PandocCodeBlock } from './types';
-import { IPandocService } from '../services/interfaces';
-import { Logger } from '../utils/logger';
-import { EntangledError } from '../errors';
+import { IPandocService } from '../interfaces';
+import { Logger } from '../../utils/logger';
+import { EntangledError } from '../../utils/errors';
 
 export class PandocError extends EntangledError {
     constructor(message: string, public readonly stderr: string) {
