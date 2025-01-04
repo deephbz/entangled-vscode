@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LiterateManager } from '../../core/literate/manager';
+// import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
 
 /**
@@ -7,15 +7,15 @@ import { Logger } from '../../utils/logger';
  */
 export class DecorationProvider {
     private static instance: DecorationProvider;
-    private documentManager: LiterateManager;
+    // private documentManager: LiterateManager;
     private logger: Logger;
     private definitionDecorationType: vscode.TextEditorDecorationType;
     private referenceDecorationType: vscode.TextEditorDecorationType;
     private activeEditor?: vscode.TextEditor;
-    private timeout?: NodeJS.Timer;
+    private timeout?: NodeJS.Timeout;
 
     private constructor() {
-        this.documentManager = LiterateManager.getInstance();
+        // this.documentManager = LiterateManager.getInstance();
         this.logger = Logger.getInstance();
 
         this.definitionDecorationType = vscode.window.createTextEditorDecorationType({

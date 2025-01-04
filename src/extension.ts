@@ -1,12 +1,7 @@
 import * as vscode from 'vscode';
-import { DocumentManager } from './document/manager';
-import {
-    EntangledDefinitionProvider,
-    EntangledReferenceProvider,
-    EntangledHoverProvider,
-    EntangledDocumentSymbolProvider
-} from './navigation/providers';
-import { DecorationProvider } from './services/decoration-provider';
+import { LiterateManager } from './core/literate/manager';
+import { EntangledDefinitionProvider, EntangledReferenceProvider, EntangledHoverProvider, EntangledDocumentSymbolProvider } from './editor/providers/navigation';
+import { DecorationProvider } from './editor/providers/decoration';
 
 // Types
 type DocumentHandler = (document: vscode.TextDocument) => Promise<void>;
@@ -34,7 +29,7 @@ const handleDocument: DocumentHandler = async (document: vscode.TextDocument) =>
 
     try {
         log(`Processing document: ${document.uri}`);
-        await DocumentManager.getInstance().parseDocument(document);
+        await LiterateManager.getInstance().parseDocument(document);
         
         // Update decorations after document is processed
         const editor = vscode.window.visibleTextEditors.find(e => e.document === document);
@@ -149,7 +144,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-    DocumentManager.getInstance().clearCache();
+    LiterateManager.getInstance().clearCache();
 }
 
 export { outputChannel, log };

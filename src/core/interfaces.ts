@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { PandocCodeBlock } from './pandoc/types';
-import { CircularReference } from './literate/entities';
+// import { CircularReference } from './literate/entities';
 
 /**
  * Interface for Pandoc service operations
