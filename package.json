@@ -26,13 +26,6 @@
         }
       }
     },
-    "grammars": [
-      {
-        "scopeName": "text.markdown.entangled.injection",
-        "path": "./syntaxes/entangled.language-injection.json",
-        "injectTo": ["text.html.markdown"]
-      }
-    ],
     "commands": [
       {
         "command": "entangled-vscode.goToDefinition",
@@ -48,12 +41,6 @@
       }
     ],
     "keybindings": [
-      {
-        "command": "entangled-vscode.peekReferences",
-        "key": "alt+f12",
-        "mac": "alt+f12",
-        "when": "editorTextFocus && editorLangId == 'markdown'"
-      },
       {
         "command": "entangled.insertReference",
         "key": "ctrl+alt+r",

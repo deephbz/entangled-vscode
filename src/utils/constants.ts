@@ -7,17 +7,7 @@ export const LANGUAGE = {
     /** The display name for the extension */
     DISPLAY_NAME: 'Entangled',
     /** The base markdown format for pandoc */
-    PANDOC_FORMAT: 'markdown',
-    /** The scope name for syntax highlighting */
-    SYNTAX_SCOPE: 'text.markdown.entangled'
-} as const;
-
-/**
- * File system related constants
- */
-export const FILES = {
-    /** The syntax definition file path */
-    SYNTAX_FILE: './syntaxes/entangled.language-injection.json'
+    PANDOC_FORMAT: 'markdown'
 } as const;
 
 /**
