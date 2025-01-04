@@ -20,11 +20,30 @@ graph TD
     A[Extension Entry Point] --> B[Core Domain]
     A --> C[Editor Integration]
     A --> D[Configuration]
+
+    %% Core Domain Components
     B --> E[Literate Programming]
     B --> F[Pandoc Service]
+    E --> E1[LiterateManager]
+    E --> E2[LiterateParser]
+    F --> F1[AST Processing]
+    F --> F2[Code Block Extraction]
+
+    %% Editor Integration
     C --> G[Providers]
     C --> H[Commands]
     C --> I[Activation]
+    
+    %% Providers Detail
+    G --> G1[Document Provider]
+    G --> G2[Navigation Provider]
+    G --> G3[Decoration Provider]
+
+    %% Key Interfaces
+    style J1 fill:#f9f,stroke:#333
+    style J2 fill:#f9f,stroke:#333
+    J1[ILiterateManager]-.->E1
+    J2[IPandocService]-.->F
 ```
 
 ### 2.2 Key Components
