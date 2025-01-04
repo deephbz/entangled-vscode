@@ -47,7 +47,9 @@ export class LiterateParser implements ILiterateParser {
                     language: block.language,
                     location,
                     references: block.references,
-                    referenceRanges: references
+                    referenceRanges: references,
+                    dependencies: new Set<string>(),
+                    dependents: new Set<string>()
                 });
             }
 
@@ -108,7 +110,8 @@ export class LiterateParser implements ILiterateParser {
                             
                             return {
                                 uri: document.uri,
-                                range: new vscode.Range(startPos, endPos)
+                                range: new vscode.Range(startPos, endPos),
+                                identifier: block.identifier
                             };
                         }
                         inCodeBlock = false;
@@ -121,9 +124,15 @@ export class LiterateParser implements ILiterateParser {
             });
             return null;
         } catch (error) {
-            this.logger.error('Error finding block location', error, {
-                identifier: block.identifier
-            });
+            if (error instanceof Error) {
+                this.logger.error('Error finding block location', error, {
+                    identifier: block.identifier
+                });
+            } else {
+                this.logger.error('Error finding block location', new Error(String(error)), {
+                    identifier: block.identifier
+                });
+            }
             return null;
         }
     }
@@ -156,9 +165,12 @@ export class LiterateParser implements ILiterateParser {
 
             return ranges;
         } catch (error) {
-            this.logger.error('Error finding references', error, {
-                identifier: block.identifier
-            });
+            this.logger.error('Error finding references', 
+                error instanceof Error ? error : new Error(String(error)),
+                {
+                    identifier: block.identifier
+                }
+            );
             return [];
         }
     }
