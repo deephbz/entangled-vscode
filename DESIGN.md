@@ -17,38 +17,48 @@ EntangleD VSCode is a Visual Studio Code extension that implements literate prog
 
 ```mermaid
 graph TD
-    A[Extension Entry Point] --> B[Document Manager]
-    A --> C[Navigation Services]
-    A --> D[Decoration Service]
-    B --> E[Pandoc Service]
-    C --> F[Document Manager]
-    D --> F
-    B --> G[Symbol Manager]
+    A[Extension Entry Point] --> B[Core Domain]
+    A --> C[Editor Integration]
+    A --> D[Configuration]
+    B --> E[Literate Programming]
+    B --> F[Pandoc Service]
+    C --> G[Providers]
+    C --> H[Commands]
+    C --> I[Activation]
 ```
 
 ### 2.2 Key Components
 
-#### Extension Entry Point (`extension.ts`)
-- Manages extension lifecycle
-- Initializes core services
-- Registers VS Code providers
-- Handles document events
+#### Core Domain (`/src/core`)
+- **Literate Programming**: Core domain logic for literate programming entities
+  - Manages code block parsing and relationships
+  - Handles dependency tracking
+  - Provides core interfaces for the system
+- **Pandoc Service**: Integration with Pandoc for Markdown processing
+  - Handles document parsing
+  - Manages Pandoc communication
 
-#### Document Manager (`document/manager.ts`)
-- Parses and manages literate programming markup
-- Maintains document state
-- Coordinates with Pandoc service
+#### Editor Integration (`/src/editor`)
+- **Providers**: VS Code integration points
+  - Navigation providers (definition, references, hover)
+  - Symbol provider for outline view
+  - Decoration provider for visual enhancements
+- **Commands**: User command handlers
+  - Navigation commands
+  - Document processing commands
+- **Activation**: Extension lifecycle management
+  - Initialization logic
+  - Resource cleanup
 
-#### Navigation Services (`navigation/providers.ts`)
-- Handles identifier definitions and references
-- Manages symbol overview and search
-- Provides hover information
-- Focus on literate programming entities
+#### Configuration (`/src/config`)
+- Default settings
+- User configuration management
+- Extension preferences
 
-#### Decoration Service (`services/decoration-provider.ts`)
-- Handles visual representation of entities
-- Updates decorations in real-time
-- Customizable highlighting styles
+#### Utilities (`/src/utils`)
+- Logging infrastructure
+- Common helper functions
+- Shared utilities
 
 ## 3. Data Flow
 
@@ -62,15 +72,15 @@ graph TD
 ### 3.2 Navigation Flow
 1. User triggers navigation action
 2. Relevant provider handles the request
-3. Document Manager provides necessary context
+3. Core domain provides necessary context
 4. VS Code UI updates accordingly
 
 ## 4. Key Design Decisions
 
-### 4.1 Singleton Pattern Usage
-- Document Manager: Ensures single source of truth for document state
-- Decoration Provider: Centralizes decoration management
-- Rationale: Maintains consistency and prevents state conflicts
+### 4.1 Clean Architecture
+- Clear separation of concerns between core domain and editor integration
+- Domain logic isolated from VS Code specifics
+- Dependency inversion through interfaces
 
 ### 4.2 Event-Driven Architecture
 - Uses VS Code's event system for document changes
@@ -85,24 +95,26 @@ graph TD
 ## 5. Extension Points
 
 ### 5.1 Language Support
-- Designed to be language-agnostic
-- New language support can be added through VS Code's language server protocol
+- Language-agnostic core domain
+- Extensible through VS Code's language server protocol
+- Support for custom code block formats
 
-### 5.2 Code Block Processors
-- Extensible system for handling different code block types
-- Can be extended for custom block formats
+### 5.2 Provider System
+- Modular provider architecture
+- Easy to add new VS Code capabilities
+- Extensible decoration system
 
 ## 6. Performance Considerations
 
 ### 6.1 Document Processing
 - Asynchronous processing to prevent UI blocking
-- Caching of parsed documents
+- Efficient caching of parsed documents
 - Incremental updates when possible
 
 ### 6.2 Memory Management
-- Document disposal when files are closed
+- Proper resource cleanup
 - Efficient storage of parsed content
-- Cleanup of unused resources
+- Smart cache invalidation
 
 ## 7. Security Considerations
 
@@ -113,14 +125,15 @@ graph TD
 
 ### 7.2 External Process Management
 - Controlled Pandoc execution
-- Input validation for all external calls
+- Input validation
+- Secure configuration handling
 
 ## 8. Testing Strategy
 
 ### 8.1 Unit Tests
-- Component-level testing
+- Core domain testing
+- Provider behavior verification
 - Mock VS Code API where necessary
-- Focus on core processing logic
 
 ### 8.2 Integration Tests
 - End-to-end extension testing
