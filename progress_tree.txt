@@ -46,12 +46,12 @@
     ✓ Moved Pandoc integration
     ✓ Created parser interface
     ✓ Created core manager
-  ◐ Phase 4: Editor Integration
+  ✓ Phase 4: Editor Integration
     ✓ Created navigation providers
     ✓ Created decoration provider
     ✓ Created command handlers
     ✓ Created activation logic
-    ○ Fix extension.ts integration
+    ✓ Fix extension.ts integration
   ○ Phase 5: Clean Up
   ○ Phase 6: Documentation
 
