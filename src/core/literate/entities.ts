@@ -5,7 +5,6 @@ import { PandocCodeBlock } from '../pandoc/types';
 export interface CodeBlockLocation {
   uri: vscode.Uri;
   range: vscode.Range;
-  identifier: string;
 }
 
 /** Represents a code block within a document with additional metadata */

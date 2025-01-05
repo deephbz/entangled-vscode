@@ -81,66 +81,69 @@ export class LiterateParser implements ILiterateParser {
       uri: document.uri.toString(),
     });
 
-    const text = document.getText();
-    const lines = text.split('\n');
-    let inCodeBlock = false;
-    let startLine = -1;
-    let blockStartPos = -1;
-
     try {
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const lineStart = text.indexOf(lines[i], blockStartPos + 1);
+      const lineCount = document.lineCount;
+      let inCodeBlock = false;
 
-        if (line.startsWith('```')) {
-          if (!inCodeBlock) {
-            const match = line.match(PATTERNS.CODE_BLOCK_OPEN);
-            if (match) {
-              const attributes = match[1];
-              const idMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
-              if (idMatch && idMatch[1] === block.identifier) {
-                startLine = i;
-                blockStartPos = lineStart;
-                inCodeBlock = true;
+      for (let i = 0; i < lineCount; i++) {
+        const line = document.lineAt(i);
+        const trimmedText = line.text.trim();
+
+        if (!trimmedText.startsWith('```')) {
+          continue;
+        }
+
+        if (!inCodeBlock) {
+          const match = trimmedText.match(PATTERNS.CODE_BLOCK_OPEN);
+          if (match) {
+            const idMatch = match[1].match(PATTERNS.BLOCK_IDENTIFIER);
+            if (idMatch && idMatch[1] === block.identifier) {
+              inCodeBlock = true;
+              const startPos = line.range.start;
+              
+              // Find the closing fence
+              for (let j = i + 1; j < lineCount; j++) {
+                const endLine = document.lineAt(j);
+                const endText = endLine.text.trim();
+                
+                if (endText === '```') {
+                  const endPos = endLine.range.end;
+                  
+                  this.logger.debug('LiterateParser::findBlockLocation::Block location found', {
+                    identifier: block.identifier,
+                    startLine: i,
+                    endLine: j,
+                  });
+
+                  return {
+                    uri: document.uri,
+                    range: new vscode.Range(startPos, endPos),
+                  };
+                }
               }
-            }
-          } else {
-            // Found the end of the code block
-            if (startLine !== -1) {
-              const startPos = document.positionAt(blockStartPos);
-              const endPos = document.positionAt(lineStart + line.length);
-
-              this.logger.debug('LiterateParser::findBlockLocation::Block location found', {
+              
+              // If we reach here, no closing fence was found
+              this.logger.warn('LiterateParser::findBlockLocation::No closing fence found', {
                 identifier: block.identifier,
-                startLine: startLine,
-                endLine: i,
+                startLine: i,
               });
-
-              return {
-                uri: document.uri,
-                range: new vscode.Range(startPos, endPos),
-                identifier: block.identifier,
-              };
+              return null;
             }
-            inCodeBlock = false;
           }
+        } else if (trimmedText === '```') {
+          inCodeBlock = false;
         }
       }
 
-      this.logger.debug('LiterateParser::findBlockLocation::Block location not found', {
+      this.logger.debug('LiterateParser::findBlockLocation::Block not found', {
         identifier: block.identifier,
       });
       return null;
+
     } catch (error) {
-      if (error instanceof Error) {
-        this.logger.error('Error finding block location', error, {
-          identifier: block.identifier,
-        });
-      } else {
-        this.logger.error('Error finding block location', new Error(String(error)), {
-          identifier: block.identifier,
-        });
-      }
+      this.logger.error('LiterateParser::findBlockLocation::Error finding block location', error instanceof Error ? error : new Error(String(error)), {
+        identifier: block.identifier,
+      });
       return null;
     }
   }
