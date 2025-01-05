@@ -111,35 +111,41 @@ export class PandocService {
       }
 
       const blocks: PandocCodeBlock[] = [];
+      let globalId = 0;
+      const identifierCounters = new Map<string, number>();
+
+      const getNextIdCount = (identifier: string): number => {
+        const currentCount = identifierCounters.get(identifier) ?? 0;
+        identifierCounters.set(identifier, currentCount + 1);
+        return currentCount;
+      };
 
       const extractFromBlock = (block: PandocBlock): void => {
         if (block.t === 'CodeBlock') {
           const [attributes, content] = block.c as PandocCodeBlockData;
-          const [[rawId, classes, keyVals]] = [attributes]; 
+          const [[rawId = '', classes = [], keyVals]] = [attributes];
 
-          // check empty
-          let identifier = rawId ? rawId : undefined;
-          if (identifier) {
-            const references = Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map(
-              (match) => match[1]
-            );
-
-            const language = classes?.[0]?.replace('.', '') || '';
-            const extraClasses = classes?.slice(1).map(c => c.replace('.', '')) || [];
-            const keyValuePairs = keyVals as [string, string][];
-
-            blocks.push({
-              identifier,
-              language,
+          // Only process blocks with an identifier
+          if (rawId) {
+            const makeBlock = (): PandocCodeBlock => ({
+              identifier: rawId,
+              blockCount: globalId++,
+              idCount: getNextIdCount(rawId),
+              language: classes[0]?.replace('.', '') || '',
+              extraClasses: classes.slice(1)?.map(c => c.replace('.', '')) || [],
               content,
-              references,
-              keyValuePairs,
-              extraClasses,
+              references: Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map(match => match[1]),
+              keyValuePairs: keyVals as [string, string][],
             });
-            this.logger.debug('PandocService::extractCodeBlocks::Found references', {
-              identifier,
-              references,
-              // lastBlock: blocks[blocks.length - 1]
+
+            const newBlock = makeBlock();
+            blocks.push(newBlock);
+
+            this.logger.debug('PandocService::extractCodeBlocks:: block w/ references', {
+              identifier: newBlock.identifier,
+              blockCount: newBlock.blockCount,
+              idCount: newBlock.idCount,
+              references: newBlock.references,
             });
           }
         } else if (Array.isArray(block.c)) {

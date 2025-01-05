@@ -1,5 +1,7 @@
 export interface PandocCodeBlock {
   identifier: string;
+  blockCount: number;      // Sequential ID across all blocks in the document
+  idCount: number;  // Sequential ID for blocks with the same identifier
   language: string;
   content: string;
   references: string[];

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { DocumentBlock, CodeBlockLocation } from './entities';
+import { PandocCodeBlock } from '../pandoc/types';
 import { DocumentParseError } from '../../utils/errors';
 import { PATTERNS } from '../../utils/constants';
 
@@ -8,7 +9,7 @@ import { PATTERNS } from '../../utils/constants';
 export interface ILiterateParser {
   parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: DocumentBlock[]
+    blocks: PandocCodeBlock[]
   ): DocumentBlock[];
   findBlockLocation(
     document: vscode.TextDocument,
@@ -27,7 +28,7 @@ export class LiterateParser implements ILiterateParser {
 
   public parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: DocumentBlock[]
+    blocks: PandocCodeBlock[]
   ): DocumentBlock[] {
     this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
       uri: document.uri.toString(),
@@ -73,7 +74,7 @@ export class LiterateParser implements ILiterateParser {
 
   public findBlockLocation(
     document: vscode.TextDocument,
-    block: DocumentBlock
+    block: PandocCodeBlock
   ): CodeBlockLocation | null {
     this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
       identifier: block.identifier,
@@ -146,7 +147,7 @@ export class LiterateParser implements ILiterateParser {
 
   public findReferencesUsedInBlock(
     document: vscode.TextDocument,
-    block: DocumentBlock
+    block: PandocCodeBlock
   ): vscode.Range[] {
     this.logger.debug('LiterateParser::findReferences::Finding references', {
       identifier: block.identifier,

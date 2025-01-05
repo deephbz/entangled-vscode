@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { BlocksByIdentifier, IdentifiersByUri, DocumentBlock, CircularReference } from './entities';
+import { PandocCodeBlock } from '../pandoc/types';
 import { ILiterateParser, LiterateParser } from './parser';
 import {
   BlockNotFoundError,
@@ -108,26 +109,25 @@ export class LiterateManager implements ILiterateManager {
     }
   }
 
-  private async extractCodeBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
+  private async extractCodeBlocks(document: vscode.TextDocument): Promise<PandocCodeBlock[]> {
     // Let Pandoc process codeblock starting line like ```{.class1 .class2 #identifier key1=value1 key2=value2} 
     const pandocService = PandocService.getInstance();
     try {
       const pandocBlocks = await pandocService.getCodeBlocksFromDocument(document);
+      return pandocBlocks;
 
-      // Convert PandocCodeBlock to DocumentBlock
-      return pandocBlocks.map((block) => ({
-        ...block,
-        location: {
-          uri: document.uri,
-          range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
-          identifier: block.identifier,
-        },
-        dependencies: new Set(block.references),
-        dependents: new Set(),
-        referenceRanges: [],
-        keyValuePairs: block.keyValuePairs || [],
-        extraClasses: block.extraClasses || []
-      }));
+      // // Convert PandocCodeBlock to DocumentBlock
+      // return pandocBlocks.map((block) => ({
+      //   ...block,
+      //   location: {
+      //     uri: document.uri,
+      //     range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
+      //     identifier: block.identifier,
+      //   },
+      //   dependencies: new Set(block.references),
+      //   dependents: new Set(),
+      //   referenceRanges: [],
+      // }));
     } catch (error) {
       this.logger.error(
         'Failed to extract code blocks',
