@@ -1,5 +1,9 @@
-export interface PandocCodeBlock {
+/** Base interface for entities with identifiers */
+export interface IdentifiableEntity {
   identifier: string;
+}
+
+export interface PandocCodeBlock extends IdentifiableEntity {
   blockCount: number; // Sequential ID across all blocks in the document
   idCount: number; // Sequential ID for blocks with the same identifier
   language: string;
