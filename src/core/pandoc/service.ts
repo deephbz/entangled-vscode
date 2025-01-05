@@ -132,9 +132,11 @@ export class PandocService {
               blockCount: globalId++,
               idCount: getNextIdCount(rawId),
               language: classes[0]?.replace('.', '') || '',
-              extraClasses: classes.slice(1)?.map(c => c.replace('.', '')) || [],
+              extraClasses: classes.slice(1)?.map((c) => c.replace('.', '')) || [],
               content,
-              references: Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map(match => match[1]),
+              references: Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map(
+                (match) => match[1]
+              ),
               keyValuePairs: keyVals as [string, string][],
             });
 

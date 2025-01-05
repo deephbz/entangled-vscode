@@ -11,10 +11,7 @@ export interface ILiterateParser {
     document: vscode.TextDocument,
     blocks: readonly PandocCodeBlock[]
   ): DocumentBlock[];
-  findBlockLocation(
-    document: vscode.TextDocument,
-    block: DocumentBlock
-  ): CodeBlockLocation | null;
+  findBlockLocation(document: vscode.TextDocument, block: DocumentBlock): CodeBlockLocation | null;
   // findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
 }
 
@@ -111,10 +108,7 @@ export class LiterateParser implements ILiterateParser {
     return null;
   }
 
-  private isBlockIdentifierMatch(
-    line: string,
-    targetIdentifier: string
-  ): boolean {
+  private isBlockIdentifierMatch(line: string, targetIdentifier: string): boolean {
     const match = line.trim().match(PATTERNS.CODE_BLOCK_OPEN);
     if (!match) return false;
 
@@ -163,12 +157,7 @@ export class LiterateParser implements ILiterateParser {
           return null;
         }
 
-        return this.createBlockLocation(
-          document,
-          line,
-          closingLine,
-          block.identifier
-        );
+        return this.createBlockLocation(document, line, closingLine, block.identifier);
       }
 
       this.logger.debug('LiterateParser::findBlockLocation::Block not found', {

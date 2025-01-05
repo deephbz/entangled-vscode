@@ -18,30 +18,17 @@ export interface DocumentBlock extends PandocCodeBlock {
 }
 
 /** Maps block identifiers to their document blocks */
-export interface BlocksByIdentifier {
+export interface DocumentBlocksByIdentifier {
   [identifier: string]: DocumentBlock[];
 }
 
-/** Maps file URIs to their block identifiers */
-export interface IdentifiersByUri {
-  [uri: string]: Set<string>; // URI -> Set of block identifiers
+/** Maps URIs to their block collections */
+export interface DocumentBlocks {
+  [uri: string]: DocumentBlocksByIdentifier;
 }
 
 /** Represents a circular reference in the code blocks */
 export interface CircularReference {
   path: string[];
   start: string;
-}
-
-/** Pandoc AST node structure */
-export interface PandocASTNode {
-  t: string; // type
-  c: any; // content
-}
-
-/** Pandoc AST document structure */
-export interface PandocAST {
-  blocks: PandocASTNode[];
-  meta: Record<string, any>;
-  pandoc_version: string[];
 }
