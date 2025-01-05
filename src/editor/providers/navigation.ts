@@ -198,12 +198,11 @@ export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolPro
             if (idMatch) {
                 const identifier = idMatch[1];
                 
-                //TODO: not using PATTERN
-                // Find the end of the code block
-                const blockEnd = text.indexOf('\n```', match.index + match[0].length);
+                // Find the end of the code block using the pre-computed fence pattern
+                const blockEnd = text.indexOf(`\n${PATTERNS.BASIC.FENCE}`, match.index + match[0].length);
                 if (blockEnd === -1) continue;
                 
-                const endPos = document.positionAt(blockEnd + 4);
+                const endPos = document.positionAt(blockEnd + PATTERNS.BASIC.FENCE.length + 1);
                 const range = new vscode.Range(startPos, endPos);
                 
                 const symbol = new vscode.DocumentSymbol(
