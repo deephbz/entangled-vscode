@@ -68,3 +68,10 @@ export interface PandocAST {
     meta: Record<string, any>;
     pandoc_version: string[];
 }
+
+/**
+ * Read-only interface for document blocks
+ */
+export interface IReadOnlyDocumentMap {
+    readonly [uri: string]: ReadonlyArray<DocumentBlock>;
+}

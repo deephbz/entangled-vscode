@@ -117,8 +117,6 @@ export class PandocService {
                     // check empty
                     let identifier = rawId ? rawId : undefined;
                     if (identifier) {
-                        this.logger.debug('PandocService::extractCodeBlocks::Found code block', { identifier });
-                        
                         const references = Array.from(content.matchAll(PATTERNS.ALL_REFERENCES))
                             .map(match => match[1]);
 
@@ -131,7 +129,7 @@ export class PandocService {
                         this.logger.debug('PandocService::extractCodeBlocks::Found references', { 
                             identifier,
                             references,
-                            lastBlock: blocks[blocks.length - 1]
+                            // lastBlock: blocks[blocks.length - 1]
                         });
                     }
                 } else if (Array.isArray(block.c)) {

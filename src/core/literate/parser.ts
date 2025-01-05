@@ -10,7 +10,7 @@ import { PATTERNS } from '../../utils/constants';
 export interface ILiterateParser {
     parseDocumentAndDecorateBlocks(document: vscode.TextDocument, blocks: PandocCodeBlock[]): DocumentBlock[];
     findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null;
-    findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[];
+    findReferencesUsedInBlock(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[];
 }
 
 /**
@@ -41,8 +41,8 @@ export class LiterateParser implements ILiterateParser {
                     continue;
                 }
 
-                this.logger.debug('parseDocumentAndDecorateBlocks:: pandocBlock ', { block });
-                const references = this.findReferences(document, block);
+                const references = this.findReferencesUsedInBlock(document, block);
+                // this.logger.debug('Parser::parseDocumentAndDecorateBlocks:: pandocBlock ', { block, references });
                 documentBlocks.push({
                     ...block,
                     location,
@@ -136,7 +136,7 @@ export class LiterateParser implements ILiterateParser {
         }
     }
 
-    public findReferences(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[] {
+    public findReferencesUsedInBlock(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[] {
         this.logger.debug('LiterateParser::findReferences::Finding references', {
             identifier: block.identifier,
             uri: document.uri.toString()

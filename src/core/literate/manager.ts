@@ -1,16 +1,18 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './entities';
+import { DocumentMap, FileMap, DocumentBlock, CircularReference, IReadOnlyDocumentMap } from './entities';
 import { ILiterateParser, LiterateParser } from './parser';
 import { BlockNotFoundError, DocumentParseError, EntangledError, BlockSyntaxError, CircularReferenceError } from '../../utils/errors';
 import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
     parseDocument(document: vscode.TextDocument): Promise<void>;
-    findDefinition(identifier: string): vscode.Location[];
-    findReferences(identifier: string): vscode.Location[];
+    findDefinition(identifier: string): Promise<vscode.Location | null>;
+    findReferences(identifier: string): Promise<vscode.Location[]>;
     findCircularReferences(): CircularReference[];
     getExpandedContent(identifier: string): string;
+    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
+    getReadOnlyDocuments(): IReadOnlyDocumentMap;
     clearCache(): void;
 }
 
@@ -178,7 +180,7 @@ export class LiterateManager implements ILiterateManager {
         }
     }
 
-    findDefinition(identifier: string): vscode.Location[] {
+    findDefinition(identifier: string): Promise<vscode.Location | null> {
         this.logger.debug('manager::findDefinition::Finding', { identifier });
         
         const locations = Object.values(this.documents)
@@ -188,20 +190,18 @@ export class LiterateManager implements ILiterateManager {
 
         if (locations.length === 0) {
             this.logger.debug('manager::findDefinition::No definitions found', { identifier });
+            return Promise.resolve(null);
         } else {
             this.logger.debug('manager::findDefinition::Definitions found', { 
                 identifier, 
                 count: locations.length,
                 locations: locations.map(loc => loc.uri.toString())
             });
+            return Promise.resolve(locations[0]);
         }
-
-        return locations;
     }
 
-    findReferences(identifier: string): vscode.Location[] {
-        this.logger.debug('manager::findReferences::Finding references', { identifier });
-        
+    findReferences(identifier: string): Promise<vscode.Location[]> {
         const locations = Object.values(this.documents)
             .flatMap(blocks => blocks)
             .filter(block => block.dependencies.has(identifier))
@@ -217,7 +217,7 @@ export class LiterateManager implements ILiterateManager {
             });
         }
 
-        return locations;
+        return Promise.resolve(locations);
     }
 
     findCircularReferences(): CircularReference[] {
@@ -316,6 +316,20 @@ export class LiterateManager implements ILiterateManager {
 
         visited.delete(id);
         return content;
+    }
+
+    /**
+     * Get read-only access to all document blocks
+     */
+    getReadOnlyDocuments(): IReadOnlyDocumentMap {
+        return this.documents;
+    }
+
+    /**
+     * Get read-only access to blocks for a specific document
+     */
+    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined {
+        return this.documents[uri];
     }
 
     clearCache(): void {

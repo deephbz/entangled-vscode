@@ -15,34 +15,36 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
         this.logger = Logger.getInstance();
     }
 
-    provideDefinition(
+    async provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
         _token: vscode.CancellationToken
-    ): vscode.ProviderResult<vscode.Definition> {
-        const line = document.lineAt(position.line).text;
-        const matches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
-        
-        for (const match of matches) {
-            const start = match.index!;
-            const end = start + match[0].length;
-            
-            if (position.character >= start && position.character <= end) {
-                const identifier = match[1]; // Use the capture group from ALL_REFERENCES
-                this.logger.debug('DefinitionProvider: Providing definition', { identifier });
-                return this.documentManager.findDefinition(identifier);
-            }
+    ): Promise<vscode.Definition | null> {
+        // Get blocks for this document using read-only access
+        const documentBlocks = this.documentManager.getDocumentBlocks(document.uri.toString());
+        if (!documentBlocks) {
+            return null;
         }
 
-        // Check if we're on a definition
-        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
-        if (codeBlockMatch) {
-            const attributes = codeBlockMatch[1];
-            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
-            if (defMatch) {
-                const identifier = defMatch[1];
-                this.logger.debug('DefinitionProvider: Providing definition', { identifier });
-                return this.documentManager.findDefinition(identifier);
+        // Find the block that contains this position
+        for (const block of documentBlocks) {
+            // Check references first
+            for (const range of block.referenceRanges) {
+                if (range.contains(position)) {
+                    const identifier = Array.from(block.dependencies)[0];
+                    if (!identifier) continue;
+                    
+                    this.logger.debug('DefinitionProvider: Providing definition from reference', { identifier });
+                    return this.documentManager.findDefinition(identifier);
+                }
+            }
+
+            // Then check if we're on the definition itself
+            if (block.location.range.contains(position)) {
+                if (!block.identifier) continue;
+                
+                this.logger.debug('DefinitionProvider: Providing definition from block', { identifier: block.identifier });
+                return this.documentManager.findDefinition(block.identifier);
             }
         }
 
@@ -68,30 +70,31 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
         _context: vscode.ReferenceContext,
         _token: vscode.CancellationToken
     ): Promise<vscode.Location[]> {
-        const line = document.lineAt(position.line).text;
-        
-        // Check for references
-        const refMatches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
-        for (const match of refMatches) {
-            const start = match.index!;
-            const end = start + match[0].length;
-            
-            if (position.character >= start && position.character <= end) {
-                const identifier = match[1];
-                this.logger.debug('DefinitionProvider: Providing references for reference', { identifier });
-                return this.documentManager.findReferences(identifier);
-            }
+        // Get blocks for this document
+        const documentBlocks = this.documentManager.getDocumentBlocks(document.uri.toString());
+        if (!documentBlocks) {
+            return [];
         }
 
-        // Check for definitions
-        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
-        if (codeBlockMatch) {
-            const attributes = codeBlockMatch[1];
-            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
-            if (defMatch) {
-                const identifier = defMatch[1];
-                this.logger.debug('DefinitionProvider: Providing references for definition', { identifier });
-                return this.documentManager.findReferences(identifier);
+        // Find the block that contains this position
+        for (const block of documentBlocks) {
+            // Check if we're on the definition
+            if (block.location.range.contains(position)) {
+                if (!block.identifier) continue;
+                
+                this.logger.debug('ReferenceProvider: Providing references for definition', { identifier: block.identifier });
+                return this.documentManager.findReferences(block.identifier);
+            }
+
+            // Check if we're on a reference
+            for (const range of block.referenceRanges) {
+                if (range.contains(position)) {
+                    const identifier = Array.from(block.dependencies)[0];
+                    if (!identifier) continue;
+                    
+                    this.logger.debug('ReferenceProvider: Providing references from reference', { identifier });
+                    return this.documentManager.findReferences(identifier);
+                }
             }
         }
 
@@ -115,38 +118,32 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
-        const line = document.lineAt(position.line).text;
-        
-        // Check for references
-        const refMatches = Array.from(line.matchAll(PATTERNS.ALL_REFERENCES));
-        for (const match of refMatches) {
-            const start = match.index!;
-            const end = start + match[0].length;
-            
-            if (position.character >= start && position.character <= end) {
-                const identifier = match[1];
-                return this.provideHoverContent(identifier, new vscode.Range(
-                    position.line,
-                    start,
-                    position.line,
-                    end
-                ));
-            }
+        this.logger.debug('HoverProvider: Providing hover for position', { position: position.toString() });
+        // Get blocks for this document
+        const documentBlocks = this.documentManager.getDocumentBlocks(document.uri.toString());
+        if (!documentBlocks) {
+            return undefined;
         }
 
-        // Check for definitions in code block attributes
-        const codeBlockMatch = line.match(PATTERNS.CODE_BLOCK_OPEN);
-        if (codeBlockMatch) {
-            const attributes = codeBlockMatch[1];
-            const defMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
-            if (defMatch) {
-                const identifier = defMatch[1];
-                const start = attributes.indexOf('#' + identifier) + line.indexOf(attributes);
-                return this.provideHoverContent(identifier, new vscode.Range(
-                    position.line,
-                    start,
-                    position.line,
-                    start + identifier.length + 1
+        // Find the block that contains this position
+        for (const block of documentBlocks) {
+            // Check references first
+            for (const range of block.referenceRanges) {
+                if (range.contains(position)) {
+                    const identifier = Array.from(block.dependencies)[0];
+                    if (!identifier) continue;
+                    
+                    return this.provideHoverContent(identifier, range);
+                }
+            }
+
+            // Then check if we're on the definition itself
+            if (block.location.range.contains(position)) {
+                if (!block.identifier) continue;
+                
+                return this.provideHoverContent(block.identifier, new vscode.Range(
+                    block.location.range.start,
+                    block.location.range.start.translate(0, block.identifier.length + 1)
                 ));
             }
         }
@@ -155,23 +152,14 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
     }
 
     private async provideHoverContent(identifier: string, range: vscode.Range): Promise<vscode.Hover | undefined> {
-        try {
-            const content = this.documentManager.getExpandedContent(identifier);
-            const locations = this.documentManager.findDefinition(identifier);
-
-            let message = new vscode.MarkdownString();
-            if (locations.length > 0) {
-                const loc = locations[0];
-                message.appendMarkdown(`**Definition**: ${loc.uri.fsPath}:${loc.range.start.line + 1}\n\n`);
-            }
-            message.appendCodeblock(content);
-
-            this.logger.debug('HoverProvider: Providing hover', { identifier });
-            return new vscode.Hover(message, range);
-        } catch (error) {
-            this.logger.warn('Error providing hover', { error: error instanceof Error ? error.message : String(error) });
+        const definition = await this.documentManager.findDefinition(identifier);
+        if (!definition) {
             return undefined;
         }
+
+        const hoverMessage = new vscode.MarkdownString();
+        hoverMessage.appendMarkdown(`**Definition**: \`${identifier}\``);
+        return new vscode.Hover(hoverMessage, range);
     }
 }
 
