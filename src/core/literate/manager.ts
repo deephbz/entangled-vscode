@@ -2,329 +2,350 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './entities';
 import { ILiterateParser, LiterateParser } from './parser';
-import { BlockNotFoundError, DocumentParseError, EntangledError, BlockSyntaxError, CircularReferenceError } from '../../utils/errors';
+import {
+  BlockNotFoundError,
+  DocumentParseError,
+  EntangledError,
+  BlockSyntaxError,
+  CircularReferenceError,
+} from '../../utils/errors';
 import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
-    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
-    parseDocument(document: vscode.TextDocument): Promise<void>;
-    findDefinition(identifier: string): Promise<vscode.Location | null>;
-    findReferences(identifier: string): Promise<vscode.Location[]>;
-    findCircularReferences(): CircularReference[];
-    getExpandedContent(identifier: string): string;
-    clearCache(): void;
+  getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
+  parseDocument(document: vscode.TextDocument): Promise<void>;
+  findDefinition(identifier: string): Promise<vscode.Location | null>;
+  findReferences(identifier: string): Promise<vscode.Location[]>;
+  findCircularReferences(): CircularReference[];
+  getExpandedContent(identifier: string): string;
+  clearCache(): void;
 }
 
 export class LiterateManager implements ILiterateManager {
-    private static instance: LiterateManager;
-    protected documentsByUri: DocumentMap = {};
-    private fileMap: FileMap = {};
-    private logger: Logger;
-    private parser: ILiterateParser;
+  private static instance: LiterateManager;
+  protected documentsByUri: DocumentMap = {};
+  private fileMap: FileMap = {};
+  private logger: Logger;
+  private parser: ILiterateParser;
 
-    private constructor() {
-        this.logger = Logger.getInstance();
-        this.parser = new LiterateParser();
+  private constructor() {
+    this.logger = Logger.getInstance();
+    this.parser = new LiterateParser();
+  }
+
+  public static getInstance(): LiterateManager {
+    if (!LiterateManager.instance) {
+      LiterateManager.instance = new LiterateManager();
     }
+    return LiterateManager.instance;
+  }
 
-    public static getInstance(): LiterateManager {
-        if (!LiterateManager.instance) {
-            LiterateManager.instance = new LiterateManager();
+  async parseDocument(document: vscode.TextDocument): Promise<void> {
+    const uri = document.uri.toString();
+    this.logger.debug('manager::parseDocument::Parsing', { uri });
+
+    try {
+      const newDocBlocks = await this.extractCodeBlocks(document);
+
+      if (newDocBlocks.length === 0) {
+        this.logger.debug('manager::parseDocument::No code blocks found', {
+          uri,
+        });
+        return;
+      }
+
+      this.logger.debug('manager::parseDocument::Code blocks extracted', {
+        count: newDocBlocks.length,
+      });
+
+      // Clear existing blocks for this document
+      this.clearDocumentBlocks(uri);
+
+      // Process and add new blocks
+      try {
+        const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, newDocBlocks);
+        this.logger.debug('manager::parseDocument::Blocks processed', {
+          totalBlocks: processedBlocks.length,
+          withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
+        });
+
+        this.addDocumentBlocks(uri, processedBlocks);
+      } catch (error) {
+        throw new DocumentParseError(error instanceof Error ? error.message : String(error), uri);
+      }
+
+      // Update dependencies
+      this.updateDependencies();
+
+      // Check for circular references
+      const circular = this.findCircularReferences();
+      if (circular.length > 0) {
+        this.logger.warn('Circular references detected', {
+          count: circular.length,
+          references: circular.map((ref) => ref.path),
+        });
+      }
+
+      // for (const blocks of Object.values(this.documents)) {
+      //     for (const block of blocks) {
+      //     this.logger.debug('manager::AfterUpdateDeps::Block content', {
+      //             identifier: block.identifier,
+      //             content: block.content,
+      //             location: block.location,
+      //             expandedContent: block.expandedContent,
+      //             dependencies: Array.from(block.dependencies),
+      //             dependents: Array.from(block.dependents),
+      //             referenceRanges: block.referenceRanges
+      //         }
+      //     );
+      //     }
+      // }
+    } catch (error) {
+      if (error instanceof EntangledError) {
+        throw error;
+      }
+      throw new DocumentParseError(error instanceof Error ? error.message : String(error), uri);
+    }
+  }
+
+  private async extractCodeBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
+    const pandocService = PandocService.getInstance();
+    try {
+      const ast = await pandocService.convertToAST(document);
+      const pandocBlocks = pandocService.extractCodeBlocks(ast);
+
+      // Convert PandocCodeBlock to DocumentBlock
+      return pandocBlocks.map((block) => ({
+        ...block,
+        location: {
+          uri: document.uri,
+          range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
+          identifier: block.identifier,
+        },
+        dependencies: new Set(block.references),
+        dependents: new Set(),
+        referenceRanges: [],
+      }));
+    } catch (error) {
+      this.logger.error(
+        'Failed to extract code blocks',
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
+    }
+  }
+
+  private clearDocumentBlocks(uri: string): void {
+    if (this.fileMap[uri]) {
+      this.logger.debug('manager::clearDocumentBlocks::Clearing existing blocks', { uri });
+      for (const identifier of this.fileMap[uri]) {
+        this.documentsByUri[identifier] =
+          this.documentsByUri[identifier]?.filter(
+            (block) => block.location.uri.toString() !== uri
+          ) || [];
+        if (this.documentsByUri[identifier].length === 0) {
+          delete this.documentsByUri[identifier];
         }
-        return LiterateManager.instance;
+      }
+    }
+    this.fileMap[uri] = new Set();
+  }
+
+  private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
+    for (const block of blocks) {
+      if (!this.documentsByUri[block.identifier]) {
+        this.documentsByUri[block.identifier] = [];
+      }
+      this.documentsByUri[block.identifier].push(block);
+      this.fileMap[uri].add(block.identifier);
+    }
+  }
+
+  private updateDependencies(): void {
+    this.logger.debug('manager::updateDependencies::Updating');
+
+    // Clear existing dependents
+    for (const blocks of Object.values(this.documentsByUri)) {
+      for (const block of blocks) {
+        block.dependents.clear();
+      }
     }
 
-    async parseDocument(document: vscode.TextDocument): Promise<void> {
-        const uri = document.uri.toString();
-        this.logger.debug('manager::parseDocument::Parsing', { uri });
-
-        try {
-            const newDocBlocks = await this.extractCodeBlocks(document);
-
-            if (newDocBlocks.length === 0) {
-                this.logger.debug('manager::parseDocument::No code blocks found', { uri });
-                return;
+    // Update dependents based on dependencies
+    for (const blocks of Object.values(this.documentsByUri)) {
+      for (const block of blocks) {
+        for (const dep of block.dependencies) {
+          const depBlocks = this.documentsByUri[dep];
+          if (depBlocks) {
+            for (const depBlock of depBlocks) {
+              depBlock.dependents.add(block.identifier);
             }
-
-            this.logger.debug('manager::parseDocument::Code blocks extracted', { count: newDocBlocks.length });
-
-            // Clear existing blocks for this document
-            this.clearDocumentBlocks(uri);
-
-            // Process and add new blocks
-            try {
-                const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, newDocBlocks);
-                this.logger.debug('manager::parseDocument::Blocks processed', {
-                    totalBlocks: processedBlocks.length,
-                    withIdentifiers: processedBlocks.filter(b => b.identifier).length
-                });
-
-                this.addDocumentBlocks(uri, processedBlocks);
-            } catch (error) {
-                throw new DocumentParseError(
-                    error instanceof Error ? error.message : String(error),
-                    uri
-                );
-            }
-
-            // Update dependencies
-            this.updateDependencies();
-
-            // Check for circular references
-            const circular = this.findCircularReferences();
-            if (circular.length > 0) {
-                this.logger.warn('Circular references detected', {
-                    count: circular.length,
-                    references: circular.map(ref => ref.path)
-                });
-            }
-
-
-            // for (const blocks of Object.values(this.documents)) {
-            //     for (const block of blocks) {
-            //     this.logger.debug('manager::AfterUpdateDeps::Block content', { 
-            //             identifier: block.identifier,
-            //             content: block.content,
-            //             location: block.location,
-            //             expandedContent: block.expandedContent,
-            //             dependencies: Array.from(block.dependencies),
-            //             dependents: Array.from(block.dependents),
-            //             referenceRanges: block.referenceRanges
-            //         }
-            //     );
-            //     }
-            // }
-        } catch (error) {
-            if (error instanceof EntangledError) {
-                throw error;
-            }
-            throw new DocumentParseError(
-                error instanceof Error ? error.message : String(error),
-                uri
-            );
+          }
         }
+      }
+    }
+  }
+
+  findDefinition(identifier: string): Promise<vscode.Location | null> {
+    this.logger.debug('manager::findDefinition::Finding', { identifier });
+
+    const locations = Object.values(this.documentsByUri)
+      .flatMap((blocks) => blocks)
+      .filter((block) => block.identifier === identifier)
+      .map((block) => new vscode.Location(block.location.uri, block.location.range));
+
+    if (locations.length === 0) {
+      this.logger.debug('manager::findDefinition::No definitions found', {
+        identifier,
+      });
+      return Promise.resolve(null);
+    } else {
+      this.logger.debug('manager::findDefinition::Definitions found', {
+        identifier,
+        count: locations.length,
+        locations: locations.map((loc) => loc.uri.toString()),
+      });
+      return Promise.resolve(locations[0]);
+    }
+  }
+
+  findReferences(identifier: string): Promise<vscode.Location[]> {
+    const locations = Object.values(this.documentsByUri)
+      .flatMap((blocks) => blocks)
+      .filter((block) => block.dependencies.has(identifier))
+      .map((block) => new vscode.Location(block.location.uri, block.location.range));
+
+    if (locations.length === 0) {
+      this.logger.debug('manager::findReferences::No references found', {
+        identifier,
+      });
+    } else {
+      this.logger.debug('manager::findReferences::References found', {
+        identifier,
+        count: locations.length,
+        locations: locations.map((loc) => loc.uri.toString()),
+      });
     }
 
-    private async extractCodeBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
-        const pandocService = PandocService.getInstance();
-        try {
-            const ast = await pandocService.convertToAST(document);
-            const pandocBlocks = pandocService.extractCodeBlocks(ast);
+    return Promise.resolve(locations);
+  }
 
-            // Convert PandocCodeBlock to DocumentBlock
-            return pandocBlocks.map(block => ({
-                ...block,
-                location: {
-                    uri: document.uri,
-                    range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
-                    identifier: block.identifier
-                },
-                dependencies: new Set(block.references),
-                dependents: new Set(),
-                referenceRanges: []
-            }));
-        } catch (error) {
-            this.logger.error('Failed to extract code blocks', error instanceof Error ? error : new Error(String(error)));
-            throw error;
+  findCircularReferences(): CircularReference[] {
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+    const cycles: CircularReference[] = [];
+
+    const dfs = (identifier: string, path: string[] = []): void => {
+      if (recursionStack.has(identifier)) {
+        const cycleStart = path.indexOf(identifier);
+        if (cycleStart !== -1) {
+          const cycle = {
+            path: path.slice(cycleStart),
+            start: identifier,
+          };
+          cycles.push(cycle);
+          this.logger.warn('Found circular reference', { cycle });
         }
-    }
+        return;
+      }
 
-    private clearDocumentBlocks(uri: string): void {
-        if (this.fileMap[uri]) {
-            this.logger.debug('manager::clearDocumentBlocks::Clearing existing blocks', { uri });
-            for (const identifier of this.fileMap[uri]) {
-                this.documentsByUri[identifier] = this.documentsByUri[identifier]?.filter(
-                    block => block.location.uri.toString() !== uri
-                ) || [];
-                if (this.documentsByUri[identifier].length === 0) {
-                    delete this.documentsByUri[identifier];
-                }
-            }
-        }
-        this.fileMap[uri] = new Set();
-    }
+      if (visited.has(identifier)) {
+        return;
+      }
 
-    private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
+      visited.add(identifier);
+      recursionStack.add(identifier);
+      path.push(identifier);
+
+      const blocks = this.documentsByUri[identifier];
+      if (blocks) {
         for (const block of blocks) {
-            if (!this.documentsByUri[block.identifier]) {
-                this.documentsByUri[block.identifier] = [];
-            }
-            this.documentsByUri[block.identifier].push(block);
-            this.fileMap[uri].add(block.identifier);
+          for (const dep of block.dependencies) {
+            dfs(dep, [...path]);
+          }
         }
+      }
+
+      recursionStack.delete(identifier);
+      path.pop();
+    };
+
+    for (const identifier of Object.keys(this.documentsByUri)) {
+      if (!visited.has(identifier)) {
+        dfs(identifier);
+      }
     }
 
-    private updateDependencies(): void {
-        this.logger.debug('manager::updateDependencies::Updating');
+    return cycles;
+  }
 
-        // Clear existing dependents
-        for (const blocks of Object.values(this.documentsByUri)) {
-            for (const block of blocks) {
-                block.dependents.clear();
-            }
-        }
+  getExpandedContent(identifier: string): string {
+    this.logger.debug('manager::getExpandedContent::Getting expanded content', {
+      identifier,
+    });
 
-        // Update dependents based on dependencies
-        for (const blocks of Object.values(this.documentsByUri)) {
-            for (const block of blocks) {
-                for (const dep of block.dependencies) {
-                    const depBlocks = this.documentsByUri[dep];
-                    if (depBlocks) {
-                        for (const depBlock of depBlocks) {
-                            depBlock.dependents.add(block.identifier);
-                        }
-                    }
-                }
-            }
-        }
+    const blocks = this.documentsByUri[identifier];
+    if (!blocks?.length) {
+      throw new BlockNotFoundError(identifier);
     }
 
-    findDefinition(identifier: string): Promise<vscode.Location | null> {
-        this.logger.debug('manager::findDefinition::Finding', { identifier });
+    try {
+      const content = this.expand(identifier);
+      this.logger.debug('manager::getExpandedContent: expanded successfully', {
+        identifier,
+      });
+      return content;
+    } catch (error) {
+      if (error instanceof CircularReferenceError) {
+        throw error;
+      }
+      throw new BlockSyntaxError(
+        error instanceof Error ? error.message : String(error),
+        identifier
+      );
+    }
+  }
 
-        const locations = Object.values(this.documentsByUri)
-            .flatMap(blocks => blocks)
-            .filter(block => block.identifier === identifier)
-            .map(block => new vscode.Location(block.location.uri, block.location.range));
-
-        if (locations.length === 0) {
-            this.logger.debug('manager::findDefinition::No definitions found', { identifier });
-            return Promise.resolve(null);
-        } else {
-            this.logger.debug('manager::findDefinition::Definitions found', {
-                identifier,
-                count: locations.length,
-                locations: locations.map(loc => loc.uri.toString())
-            });
-            return Promise.resolve(locations[0]);
-        }
+  private expand(id: string, visited: Set<string> = new Set()): string {
+    if (visited.has(id)) {
+      this.logger.warn('Circular reference detected during expansion', {
+        identifier: id,
+      });
+      return `<<circular reference to ${id}>>`;
     }
 
-    findReferences(identifier: string): Promise<vscode.Location[]> {
-        const locations = Object.values(this.documentsByUri)
-            .flatMap(blocks => blocks)
-            .filter(block => block.dependencies.has(identifier))
-            .map(block => new vscode.Location(block.location.uri, block.location.range));
-
-        if (locations.length === 0) {
-            this.logger.debug('manager::findReferences::No references found', { identifier });
-        } else {
-            this.logger.debug('manager::findReferences::References found', {
-                identifier,
-                count: locations.length,
-                locations: locations.map(loc => loc.uri.toString())
-            });
-        }
-
-        return Promise.resolve(locations);
+    const blocks = this.documentsByUri[id];
+    if (!blocks?.length) {
+      this.logger.warn('Block not found during expansion', { identifier: id });
+      return `<<${id} not found>>`;
     }
 
-    findCircularReferences(): CircularReference[] {
-        const visited = new Set<string>();
-        const recursionStack = new Set<string>();
-        const cycles: CircularReference[] = [];
+    visited.add(id);
+    let content = '';
 
-        const dfs = (identifier: string, path: string[] = []): void => {
-            if (recursionStack.has(identifier)) {
-                const cycleStart = path.indexOf(identifier);
-                if (cycleStart !== -1) {
-                    const cycle = {
-                        path: path.slice(cycleStart),
-                        start: identifier
-                    };
-                    cycles.push(cycle);
-                    this.logger.warn('Found circular reference', { cycle });
-                }
-                return;
-            }
-
-            if (visited.has(identifier)) {
-                return;
-            }
-
-            visited.add(identifier);
-            recursionStack.add(identifier);
-            path.push(identifier);
-
-            const blocks = this.documentsByUri[identifier];
-            if (blocks) {
-                for (const block of blocks) {
-                    for (const dep of block.dependencies) {
-                        dfs(dep, [...path]);
-                    }
-                }
-            }
-
-            recursionStack.delete(identifier);
-            path.pop();
-        };
-
-        for (const identifier of Object.keys(this.documentsByUri)) {
-            if (!visited.has(identifier)) {
-                dfs(identifier);
-            }
-        }
-
-        return cycles;
+    for (const block of blocks) {
+      content += block.content.replace(/<<([^>]+)>>/g, (_, ref) => {
+        return this.expand(ref, new Set(visited));
+      });
+      content += '\n';
     }
 
-    getExpandedContent(identifier: string): string {
-        this.logger.debug('manager::getExpandedContent::Getting expanded content', { identifier });
+    visited.delete(id);
+    return content;
+  }
 
-        const blocks = this.documentsByUri[identifier];
-        if (!blocks?.length) {
-            throw new BlockNotFoundError(identifier);
-        }
+  /** Get read-only access to blocks for a specific document */
+  getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined {
+    return this.documentsByUri[uri];
+  }
 
-        try {
-            const content = this.expand(identifier);
-            this.logger.debug('manager::getExpandedContent: expanded successfully', { identifier });
-            return content;
-        } catch (error) {
-            if (error instanceof CircularReferenceError) {
-                throw error;
-            }
-            throw new BlockSyntaxError(
-                error instanceof Error ? error.message : String(error),
-                identifier
-            );
-        }
-    }
+  getDocumentsUris(): Iterable<string> {
+    return Object.keys(this.documentsByUri);
+  }
 
-    private expand(id: string, visited: Set<string> = new Set()): string {
-        if (visited.has(id)) {
-            this.logger.warn('Circular reference detected during expansion', { identifier: id });
-            return `<<circular reference to ${id}>>`;
-        }
-
-        const blocks = this.documentsByUri[id];
-        if (!blocks?.length) {
-            this.logger.warn('Block not found during expansion', { identifier: id });
-            return `<<${id} not found>>`;
-        }
-
-        visited.add(id);
-        let content = '';
-
-        for (const block of blocks) {
-            content += block.content.replace(/<<([^>]+)>>/g, (_, ref) => {
-                return this.expand(ref, new Set(visited));
-            });
-            content += '\n';
-        }
-
-        visited.delete(id);
-        return content;
-    }
-
-    /** Get read-only access to blocks for a specific document */
-    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined { return this.documentsByUri[uri]; }
-
-    getDocumentsUris(): Iterable<string> { return Object.keys(this.documentsByUri); }
-
-    clearCache(): void {
-        this.documentsByUri = {};
-        this.fileMap = {};
-        this.logger.info('Cache cleared');
-    }
+  clearCache(): void {
+    this.documentsByUri = {};
+    this.fileMap = {};
+    this.logger.info('Cache cleared');
+  }
 }

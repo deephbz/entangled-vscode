@@ -1,10 +1,11 @@
 # Factorial Implementation
 
-This document demonstrates a literate programming approach to implementing a factorial function.
+This document demonstrates a literate programming approach to implementing a
+factorial function.
 
 ## Function Definition
 
-``` {.python #factorial-function}
+```{.python #factorial-function}
 def factorial(n: int) -> int:
     """Calculate the factorial of a number."""
     if n < 0:
@@ -14,22 +15,21 @@ def factorial(n: int) -> int:
 
 ## Base Case
 
-``` {.python #base-case}
+```{.python #base-case}
 1
 ```
 
 ## Recursive Case
 
-``` {.python #recursive-case}
+```{.python #recursive-case}
 n * factorial(n - 1)  #
 ```
 
 ## Complete Implementation
 
-``` {.python file=factorial.py}
+```{.python file=factorial.py}
 <<factorial-function>>
 
 # Test the function
-print(factorial(5))  # Should print 120 
-``` 
-
+print(factorial(5))  # Should print 120
+```

@@ -2,9 +2,12 @@
 
 ## 1. System Overview
 
-EntangleD VSCode is a Visual Studio Code extension that implements literate programming support, allowing developers to write code inside Markdown files while maintaining full IDE capabilities.
+EntangleD VSCode is a Visual Studio Code extension that implements literate
+programming support, allowing developers to write code inside Markdown files
+while maintaining full IDE capabilities.
 
 ### 1.1 Core Functionality
+
 - Parse and process Markdown files containing EntangleD code blocks
 - Provide code navigation features (definition, references)
 - Support real-time code block visualization
@@ -33,7 +36,7 @@ graph TD
     C --> G[Providers]
     C --> H[Commands]
     C --> I[Activation]
-    
+
     %% Providers Detail
     G --> G1[Document Provider]
     G --> G2[Navigation Provider]
@@ -48,9 +51,11 @@ graph TD
 
 ### 2.2 Key Components
 
-Flow: DocumentManager parse -> PandocService -> PandocBlocks -> Decorate to become DocumentBlocks -> update dependencies
+Flow: DocumentManager parse -> PandocService -> PandocBlocks -> Decorate to
+become DocumentBlocks -> update dependencies
 
 #### Extension Entry Point (`extension.ts`)
+
 - Manages extension lifecycle
 - Initializes core services
 - Registers VS Code providers
@@ -58,18 +63,21 @@ Flow: DocumentManager parse -> PandocService -> PandocBlocks -> Decorate to beco
 - Provides comprehensive error handling and logging
 
 #### Document Manager (`document/manager.ts`)
+
 - Parses and manages literate programming markup
 - Maintains document state
 - Coordinates with Pandoc service
 - Tracks block dependencies and references
 
 #### Navigation Services (`navigation/providers.ts`)
+
 - Handles identifier definitions and references
 - Manages symbol overview and search
 - Provides hover information
 - Focus on literate programming entities
 
 #### Decoration Service (`services/decoration-provider.ts`)
+
 - Handles visual representation of entities
 - Updates decorations in real-time
 - Customizable highlighting styles
@@ -78,6 +86,7 @@ Flow: DocumentManager parse -> PandocService -> PandocBlocks -> Decorate to beco
 ## 3. Data Flow
 
 ### 3.1 Document Processing Flow
+
 ```mermaid
 graph TD
     A[Document Open/Change] --> B[Extension Handler]
@@ -99,6 +108,7 @@ graph TD
 ```
 
 ### 3.2 Error Handling & Logging
+
 - Hierarchical error system with specific error types
 - Comprehensive debug logging (configurable via settings)
 - Performance metrics and statistics
@@ -106,6 +116,7 @@ graph TD
 - Stack trace preservation
 
 Error Types:
+
 - EntangledError (Base)
 - PandocError (Pandoc processing)
 - DocumentParseError (Markdown parsing)
@@ -114,18 +125,22 @@ Error Types:
 - CircularReferenceError (Dependency cycles)
 
 ### 3.3 Logging Categories
+
 1. **Lifecycle Events**
+
    - Extension activation/deactivation
    - Provider registration
    - Command registration
 
 2. **Document Processing**
+
    - File open/change events
    - Parse operations
    - Block extraction
    - Reference resolution
 
 3. **Performance Metrics**
+
    - Processing times
    - Block counts
    - Memory usage
@@ -140,11 +155,13 @@ Error Types:
 ## 4. Extension Points
 
 ### 4.1 Language Support
+
 - Designed to be language-agnostic
 - Pandoc integration for Markdown processing
 - Extensible block parsing system
 
 ### 4.2 Code Block Processors
+
 - Customizable block format handling
 - Language-specific features
 - Reference resolution strategies
@@ -152,36 +169,41 @@ Error Types:
 ## 5. Performance Considerations
 
 ### 5.1 Document Processing
+
 - Asynchronous operations
 - Efficient caching
 - Debounced updates
 - Memory management
 
 ### 5.2 Logging & Diagnostics
+
 - Configurable debug logging
 - Performance tracking
 - Memory usage monitoring
 - Error aggregation
 
 ## 6. Configuration
+
 ```json
 {
-    "entangled.debugLogging": {
-        "type": "boolean",
-        "default": false,
-        "description": "Enable debug logging"
-    }
+  "entangled.debugLogging": {
+    "type": "boolean",
+    "default": false,
+    "description": "Enable debug logging"
+  }
 }
 ```
 
 ## 7. Future Considerations
 
 ### 7.1 Planned Improvements
+
 - Enhanced error recovery
 - Performance optimizations
 - Additional language features
 
 ### 7.2 Potential Extensions
+
 - Custom block processors
 - Advanced navigation
 - Visualization enhancements
