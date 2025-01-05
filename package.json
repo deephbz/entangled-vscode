@@ -2,7 +2,7 @@
   "name": "entangled-vscode",
   "displayName": "Entangled VSCode",
   "description": "Navigation and visual aid for Entangled Literate Programming",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "EntangleD-VSCode",
   "license": "LGPL-3.0-or-later",
   "repository": {
@@ -26,28 +26,8 @@
         }
       }
     },
-    "commands": [
-      {
-        "command": "entangled-vscode.goToDefinition",
-        "title": "Go to Definition"
-      },
-      {
-        "command": "entangled-vscode.findReferences",
-        "title": "Find References"
-      },
-      {
-        "command": "entangled-vscode.peekReferences",
-        "title": "Peek References"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "entangled.insertReference",
-        "key": "ctrl+alt+r",
-        "mac": "cmd+alt+r",
-        "when": "editorTextFocus && editorLangId == 'markdown'"
-      }
-    ],
+    "commands": [],
+    "keybindings": [],
     "colors": [
       {
         "id": "entangled.definition.background",

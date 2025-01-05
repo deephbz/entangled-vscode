@@ -132,12 +132,13 @@ export class PandocService {
             const newBlock = makeBlock();
             blocks.push(newBlock);
 
-            this.logger.debug('PandocService::extractCodeBlocks:: block w/ references', {
-              identifier: newBlock.identifier,
-              blockCount: newBlock.blockCount,
-              idCount: newBlock.idCount,
-              references: newBlock.references,
-            });
+            // TRACE log
+            // this.logger.debug('PandocService::extractCodeBlocks:: block w/ references', {
+            //   identifier: newBlock.identifier,
+            //   blockCount: newBlock.blockCount,
+            //   idCount: newBlock.idCount,
+            //   references: newBlock.references,
+            // });
           }
         } else if (Array.isArray(block.c)) {
           for (const child of block.c) {

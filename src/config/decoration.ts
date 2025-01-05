@@ -13,7 +13,7 @@ export const defaultDecorationConfig: DecorationConfig = {
     color: { id: 'entangled.definition.foreground' },
     fontStyle: 'bold italic',
     before: {
-      contentText: '📝',
+      contentText: 'λ',
       margin: '0 4px 0 0',
     },
   },

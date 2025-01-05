@@ -8,7 +8,7 @@ import { PATTERNS } from '../../utils/constants';
 /** Interface for parsing literate programming documents */
 export interface ILiterateParser {
   parseDocumentCodeBlocks(document: vscode.TextDocument, blocks: readonly PandocCodeBlock[]): DocumentBlock[];
-  parseDocumentReferences(document: vscode.TextDocument): NoWebReference[];
+  parseDocumentReferences(document: vscode.TextDocument, blocks: DocumentBlock[]): NoWebReference[];
   findBlockLocation(document: vscode.TextDocument, block: DocumentBlock): CodeBlockLocation | null;
   // findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
 }
@@ -38,20 +38,18 @@ export class LiterateParser implements ILiterateParser {
           });
           continue;
         }
-        this.logger.debug('LiterateParser::parseDocumentAndDecorateBlocks:: Block location found', {
-          id: block.identifier,
-          cnt: block.blockCount,
-          idCnt: block.idCount,
-          id_pos: location.id_pos,
-          block_range: location.range,
-        });
+        // TRACE log
+        // this.logger.debug('LiterateParser::parseDocumentAndDecorateBlocks:: Block location found', {
+        //   id: block.identifier,
+        //   cnt: block.blockCount,
+        //   idCnt: block.idCount,
+        //   id_pos: location.id_pos,
+        //   block_range: location.range,
+        // });
 
-        // const references = this.findReferencesUsedInBlock(document, block);
-        // this.logger.debug('Parser::parseDocumentAndDecorateBlocks:: pandocBlock ', { block, references });
         documentBlocks.push({
           ...block,
           location,
-          // referenceRanges: references,
           dependencies: new Set<string>(block.references),
           dependents: new Set<string>(),
         });
@@ -68,7 +66,7 @@ export class LiterateParser implements ILiterateParser {
     }
   }
 
-  public parseDocumentReferences(document: vscode.TextDocument): NoWebReference[] {
+  public parseDocumentReferences(document: vscode.TextDocument, blocks: DocumentBlock[]): NoWebReference[] {
     const references: NoWebReference[] = [];
     const referenceMatches = Array.from(document.getText().matchAll(PATTERNS.ALL_REFERENCES));
     for (const match of referenceMatches) {
@@ -80,19 +78,15 @@ export class LiterateParser implements ILiterateParser {
       const referenceIdentifier = match[1]; // just the identifier content
       const startPos = document.positionAt(match.index);
       const endPos = document.positionAt(match.index + fullReferenceMatch.length);
-      this.logger.debug('LiterateParser::parseDocumentReferences:: Found reference', {
-        full: match[0],
-        id: match[1],
-        start: startPos,
-        end: endPos,
-      });
+      const ref_range = new vscode.Range(startPos, endPos);
+      // this.logger.debug('LiterateParser::parseDocumentReferences:: Found reference', { full: match[0], id: match[1], start: startPos, end: endPos, });
       references.push({
         identifier: referenceIdentifier,
         location: {
           uri: document.uri,
-          id_pos: new vscode.Range(startPos, endPos),
+          id_pos: ref_range,
         },
-        isInCodeBlock: false,
+        isInCodeBlock: blocks.some((block) => block.location.range.contains(ref_range)),
       });
     }
     return references;
@@ -136,12 +130,6 @@ export class LiterateParser implements ILiterateParser {
   }
 
   public findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
-    this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
-      identifier: block.identifier,
-      idCount: block.idCount,
-      uri: document.uri.toString(),
-    });
-
     try {
       let currentIdCount = 0;
 

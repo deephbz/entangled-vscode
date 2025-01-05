@@ -55,7 +55,7 @@ export class LiterateManager implements ILiterateManager {
       });
 
       // process references
-      const references = this.parser.parseDocumentReferences(document);
+      const references = this.parser.parseDocumentReferences(document, processedBlocks);
 
       this.clearDocumentEntities(uri);
       const blocksWithIds = processedBlocks.filter((b) => b.identifier);
@@ -71,11 +71,12 @@ export class LiterateManager implements ILiterateManager {
         }
         this.workspace[uri].references[ref.identifier].push(ref);
       }
-      this.logger.debug('manager::parseDocument::Parsed document', {
-        uri,
-        blocks: Object.values(this.workspace[uri].blocks),
-        references: Object.values(this.workspace[uri].references),
-      });
+      // TRACE log
+      // this.logger.debug('manager::parseDocument::Parsed document', {
+      //   uri,
+      //   blocks: Object.values(this.workspace[uri].blocks),
+      //   references: Object.values(this.workspace[uri].references),
+      // });
 
       // Update dependencies // TODO: only for blocks now
       this.updateDependencies();
