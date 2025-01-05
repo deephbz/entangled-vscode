@@ -18,8 +18,16 @@ export class EntangledNavigationProvider
     vscode.ReferenceProvider,
     vscode.HoverProvider
 {
+  private static instance: EntangledNavigationProvider;
   private readonly logger = Logger.getInstance();
   private readonly manager = LiterateManager.getInstance();
+
+  public static getInstance(): EntangledNavigationProvider {
+    if (!EntangledNavigationProvider.instance) {
+      EntangledNavigationProvider.instance = new EntangledNavigationProvider();
+    }
+    return EntangledNavigationProvider.instance;
+  }
 
   /** Find entity (block or reference) at position */
   private findEntityAtPosition(
@@ -172,10 +180,13 @@ export class EntangledNavigationProvider
   async provideReferences(
     document: vscode.TextDocument,
     position: vscode.Position,
-    _: vscode.ReferenceContext,
+    context: vscode.ReferenceContext,
     token: vscode.CancellationToken
   ): Promise<vscode.Location[]> {
     if (token.isCancellationRequested) return [];
+    if (!context.includeDeclaration) {
+      return [];
+    }
 
     const entity = this.findEntityAtPosition(document, position);
     if (!entity) return [];

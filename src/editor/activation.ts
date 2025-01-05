@@ -11,12 +11,14 @@ export class ExtensionActivator {
   private documentManager: LiterateManager;
   private logger: Logger;
   private decorationProvider: DecorationProvider;
+  private navigationProvider: EntangledNavigationProvider;
   private commandHandler: CommandHandler;
 
   constructor() {
     this.documentManager = LiterateManager.getInstance();
     this.logger = Logger.getInstance();
     this.decorationProvider = DecorationProvider.getInstance();
+    this.navigationProvider = EntangledNavigationProvider.getInstance();
     this.commandHandler = new CommandHandler();
   }
 
@@ -28,19 +30,19 @@ export class ExtensionActivator {
       context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledNavigationProvider()
+          this.navigationProvider
         ),
         vscode.languages.registerReferenceProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledNavigationProvider()
+          this.navigationProvider
         ),
         vscode.languages.registerHoverProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledNavigationProvider()
+          this.navigationProvider
         ),
         vscode.languages.registerDocumentSymbolProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledNavigationProvider()
+          this.navigationProvider
         )
       );
 
