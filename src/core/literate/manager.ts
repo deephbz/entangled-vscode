@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import {
-  DocumentBlocks,
+  WorkspaceEntities,
+  DocumentEntities,
   DocumentBlock,
   CircularReference,
-  DocumentBlocksByIdentifier,
-  NoWebReferenceByIdentifier,
 } from './entities';
 import { PandocCodeBlock } from '../pandoc/types';
 import { ILiterateParser, LiterateParser } from './parser';
@@ -16,10 +15,10 @@ import {
   BlockSyntaxError,
   CircularReferenceError,
 } from '../../utils/errors';
-import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
+import { PandocService } from '../pandoc/service';
 
 export interface ILiterateManager {
-  getDocumentBlocks(uri: string): DocumentBlocksByIdentifier | undefined;
+  getDocumentEntities(uri: string): DocumentEntities | undefined;
   parseDocument(document: vscode.TextDocument): Promise<void>;
   findDefinition(identifier: string): Promise<vscode.Location | null>;
   findReferences(identifier: string): Promise<vscode.Location[]>;
@@ -30,8 +29,7 @@ export interface ILiterateManager {
 
 export class LiterateManager implements ILiterateManager {
   private static instance: LiterateManager;
-  protected documentBlocks: DocumentBlocks = {};
-  protected referencesByIdentifier: NoWebReferenceByIdentifier = {};
+  protected workspace: WorkspaceEntities = {};
   private logger: Logger;
   private parser: ILiterateParser;
 
@@ -52,30 +50,35 @@ export class LiterateManager implements ILiterateManager {
     this.logger.debug('manager::parseDocument::Parsing', { uri });
 
     try {
+      // Process blocks (definitions)
       const pandocCodeBlocks = await this.extractCodeBlocks(document);
-      this.logger.debug('manager::parseDocument::Code blocks extracted', {
-        count: pandocCodeBlocks.length,
-      });
-
       if (pandocCodeBlocks.length === 0) return;
-
-      // Process and add new blocks
       const processedBlocks = this.parser.parseDocumentCodeBlocks(
         document,
         pandocCodeBlocks
       );
       this.logger.debug('manager::parseDocument::Blocks processed', {
-        totalBlocks: processedBlocks.length,
+        numPandocBlocks: pandocCodeBlocks.length,
+        numProcessedBlocks: processedBlocks.length,
         withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
       });
 
-      this.clearDocumentBlocks(uri);
-      this.addDocumentBlocks(
-        uri,
-        processedBlocks.filter((b) => b.identifier)
-      );
+      // process references
+      const references = this.parser.parseDocumentReferences(document);
 
-      // Update dependencies
+      this.clearDocumentEntities(uri);
+      const blocksWithIds = processedBlocks.filter((b) => b.identifier);
+      for (const block of blocksWithIds) {
+        if (!this.workspace[uri].blocks[block.identifier]) {
+          this.workspace[uri].blocks[block.identifier] = [];
+        }
+        this.workspace[uri].blocks[block.identifier].push(block);
+      }
+      for (const ref of references) {
+        this.workspace[uri].references[ref.identifier] = ref;
+      }
+
+      // Update dependencies // TODO: only for blocks now 
       this.updateDependencies();
 
       // Check for circular references
@@ -86,23 +89,6 @@ export class LiterateManager implements ILiterateManager {
           references: circular.map((ref) => ref.path),
         });
       }
-
-      // for (const blocks of Object.values(this.documents)) {
-      //     for (const block of blocks) {
-      //     this.logger.debug('manager::AfterUpdateDeps::Block content', {
-      //             identifier: block.identifier,
-      //             content: block.content,
-      //             location: block.location,
-      //             expandedContent: block.expandedContent,
-      //             dependencies: Array.from(block.dependencies),
-      //             dependents: Array.from(block.dependents),
-      //             referenceRanges: block.referenceRanges
-      //         }
-      //     );
-      //     }
-      // }
-    
-      this.referencesByIdentifier = this.parser.parseDocumentReferences(document);
     } catch (error) {
       if (error instanceof EntangledError) {
         throw error;
@@ -117,19 +103,6 @@ export class LiterateManager implements ILiterateManager {
     try {
       const pandocBlocks = await pandocService.getCodeBlocksFromDocument(document);
       return pandocBlocks;
-
-      // // Convert PandocCodeBlock to DocumentBlock
-      // return pandocBlocks.map((block) => ({
-      //   ...block,
-      //   location: {
-      //     uri: document.uri,
-      //     range: new vscode.Range(0, 0, 0, 0), // This will be updated by the parser
-      //     identifier: block.identifier,
-      //   },
-      //   dependencies: new Set(block.references),
-      //   dependents: new Set(),
-      //   referenceRanges: [],
-      // }));
     } catch (error) {
       this.logger.error(
         'Failed to extract code blocks',
@@ -139,20 +112,14 @@ export class LiterateManager implements ILiterateManager {
     }
   }
 
-  private clearDocumentBlocks(uri: string): void {
-    delete this.documentBlocks[uri];
-  }
-
-  private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
-    if (!this.documentBlocks[uri]) {
-      this.documentBlocks[uri] = {};
-    }
-
-    for (const block of blocks) {
-      if (!this.documentBlocks[uri][block.identifier]) {
-        this.documentBlocks[uri][block.identifier] = [];
-      }
-      this.documentBlocks[uri][block.identifier].push(block);
+  private clearDocumentEntities(uri: string): void {
+    delete this.workspace[uri];
+    // and init
+    if (!this.workspace[uri]) {
+      this.workspace[uri] = {
+        blocks: {},
+        references: {}
+      };
     }
   }
 
@@ -160,8 +127,8 @@ export class LiterateManager implements ILiterateManager {
     this.logger.debug('manager::updateDependencies::Updating');
 
     // Clear existing dependents
-    for (const docBlocks of Object.values(this.documentBlocks)) {
-      for (const blocks of Object.values(docBlocks)) {
+    for (const docEntities of Object.values(this.workspace)) {
+      for (const blocks of Object.values(docEntities.blocks)) {
         for (const block of blocks) {
           block.dependents.clear();
         }
@@ -169,13 +136,13 @@ export class LiterateManager implements ILiterateManager {
     }
 
     // Update dependents based on dependencies
-    for (const docBlocks of Object.values(this.documentBlocks)) {
-      for (const blocks of Object.values(docBlocks)) {
+    for (const docEntities of Object.values(this.workspace)) {
+      for (const blocks of Object.values(docEntities.blocks)) {
         for (const block of blocks) {
           for (const dep of block.dependencies) {
             // Search for dependency across all documents
-            for (const targetDoc of Object.values(this.documentBlocks)) {
-              const depBlocks = targetDoc[dep];
+            for (const targetDoc of Object.values(this.workspace)) {
+              const depBlocks = targetDoc.blocks[dep];
               if (depBlocks) {
                 for (const depBlock of depBlocks) {
                   depBlock.dependents.add(block.identifier);
@@ -191,8 +158,8 @@ export class LiterateManager implements ILiterateManager {
   findDefinition(identifier: string): Promise<vscode.Location | null> {
     this.logger.debug('manager::findDefinition::Finding', { identifier });
 
-    const locations = Object.values(this.documentBlocks)
-      .flatMap((docBlocks) => Object.values(docBlocks))
+    const locations = Object.values(this.workspace)
+      .flatMap((docEntities) => Object.values(docEntities.blocks))
       .flatMap((blocks) => blocks)
       .filter((block) => block.identifier === identifier)
       .map((block) => new vscode.Location(block.location.uri, block.location.range));
@@ -213,8 +180,8 @@ export class LiterateManager implements ILiterateManager {
   }
 
   findReferences(identifier: string): Promise<vscode.Location[]> {
-    const locations = Object.values(this.documentBlocks)
-      .flatMap((docBlocks) => Object.values(docBlocks))
+    const locations = Object.values(this.workspace)
+      .flatMap((docEntities) => Object.values(docEntities.blocks))
       .flatMap((blocks) => blocks)
       .filter((block) => block.dependencies.has(identifier))
       .map((block) => new vscode.Location(block.location.uri, block.location.range));
@@ -262,8 +229,8 @@ export class LiterateManager implements ILiterateManager {
       path.push(identifier);
 
       // Search for dependencies across all documents
-      for (const docBlocks of Object.values(this.documentBlocks)) {
-        const blocks = docBlocks[identifier];
+      for (const docEntities of Object.values(this.workspace)) {
+        const blocks = docEntities.blocks[identifier];
         if (blocks) {
           for (const block of blocks) {
             for (const dep of block.dependencies) {
@@ -278,8 +245,8 @@ export class LiterateManager implements ILiterateManager {
     };
 
     // Start DFS from each identifier in each document
-    for (const docBlocks of Object.values(this.documentBlocks)) {
-      for (const identifier of Object.keys(docBlocks)) {
+    for (const docEntities of Object.values(this.workspace)) {
+      for (const identifier of Object.keys(docEntities.blocks)) {
         if (!visited.has(identifier)) {
           dfs(identifier);
         }
@@ -296,9 +263,9 @@ export class LiterateManager implements ILiterateManager {
 
     // Search for blocks across all documents
     let blocks: DocumentBlock[] | undefined;
-    for (const docBlocks of Object.values(this.documentBlocks)) {
-      if (docBlocks[identifier]) {
-        blocks = docBlocks[identifier];
+    for (const docEntities of Object.values(this.workspace)) {
+      if (docEntities.blocks[identifier]) {
+        blocks = docEntities.blocks[identifier];
         break;
       }
     }
@@ -334,9 +301,9 @@ export class LiterateManager implements ILiterateManager {
 
     // Search for blocks across all documents
     let blocks: DocumentBlock[] | undefined;
-    for (const docBlocks of Object.values(this.documentBlocks)) {
-      if (docBlocks[id]) {
-        blocks = docBlocks[id];
+    for (const docEntities of Object.values(this.workspace)) {
+      if (docEntities.blocks[id]) {
+        blocks = docEntities.blocks[id];
         break;
       }
     }
@@ -360,16 +327,12 @@ export class LiterateManager implements ILiterateManager {
     return content;
   }
 
-  getDocumentBlocks(uri: string): DocumentBlocksByIdentifier | undefined {
-    const docBlocks = this.documentBlocks[uri];
-    if (!docBlocks) {
-      return undefined;
-    }
-    return docBlocks;
+  getDocumentEntities(uri: string): DocumentEntities | undefined {
+    return this.workspace[uri];
   }
 
   clearCache(): void {
-    this.documentBlocks = {};
+    this.workspace = {};
     this.logger.info('Cache cleared');
   }
 }
