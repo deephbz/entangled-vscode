@@ -9,7 +9,7 @@ import { PATTERNS } from '../../utils/constants';
 export interface ILiterateParser {
   parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: PandocCodeBlock[]
+    blocks: readonly PandocCodeBlock[]
   ): DocumentBlock[];
   findBlockLocation(
     document: vscode.TextDocument,
@@ -28,7 +28,7 @@ export class LiterateParser implements ILiterateParser {
 
   public parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: PandocCodeBlock[]
+    blocks: readonly PandocCodeBlock[]
   ): DocumentBlock[] {
     this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
       uri: document.uri.toString(),

@@ -46,9 +46,9 @@ export class LiterateManager implements ILiterateManager {
     this.logger.debug('manager::parseDocument::Parsing', { uri });
 
     try {
-      const newDocBlocks = await this.extractCodeBlocks(document);
+      const pandocCodeBlocks = await this.extractCodeBlocks(document);
 
-      if (newDocBlocks.length === 0) {
+      if (pandocCodeBlocks.length === 0) {
         this.logger.debug('manager::parseDocument::No code blocks found', {
           uri,
         });
@@ -56,7 +56,7 @@ export class LiterateManager implements ILiterateManager {
       }
 
       this.logger.debug('manager::parseDocument::Code blocks extracted', {
-        count: newDocBlocks.length,
+        count: pandocCodeBlocks.length,
       });
 
       // Clear existing blocks for this document
@@ -64,7 +64,7 @@ export class LiterateManager implements ILiterateManager {
 
       // Process and add new blocks
       try {
-        const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, newDocBlocks);
+        const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, pandocCodeBlocks);
         this.logger.debug('manager::parseDocument::Blocks processed', {
           totalBlocks: processedBlocks.length,
           withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
