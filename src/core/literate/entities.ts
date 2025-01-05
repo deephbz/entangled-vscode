@@ -4,6 +4,7 @@ import { PandocCodeBlock } from '../pandoc/types';
 /** Location information for a code block within a document */
 export interface CodeBlockLocation {
   uri: vscode.Uri;
+  id_pos: vscode.Range;
   range: vscode.Range;
 }
 

@@ -101,6 +101,13 @@ export class LiterateParser implements ILiterateParser {
               inCodeBlock = true;
               const startPos = line.range.start;
               
+              // Calculate the position of the identifier within the line
+              const idStart = line.text.indexOf(block.identifier);
+              const idPos = new vscode.Range(
+                line.range.start.translate(0, idStart),
+                line.range.start.translate(0, idStart + block.identifier.length)
+              );
+              
               // Find the closing fence
               for (let j = i + 1; j < lineCount; j++) {
                 const endLine = document.lineAt(j);
@@ -117,6 +124,7 @@ export class LiterateParser implements ILiterateParser {
 
                   return {
                     uri: document.uri,
+                    id_pos: idPos,
                     range: new vscode.Range(startPos, endPos),
                   };
                 }
