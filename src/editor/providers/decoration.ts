@@ -134,21 +134,6 @@ export class DecorationProvider {
         referenceRanges.push(new vscode.Range(startPos, endPos));
       }
 
-      // Log any potential decoration issues
-      if (definitionMatches.length !== definitionRanges.length) {
-        this.logger.warn('Decoration provider::Mismatch in definition decorations', {
-          matches: definitionMatches.length,
-          ranges: definitionRanges.length,
-        });
-      }
-
-      if (referenceMatches.length !== referenceRanges.length) {
-        this.logger.warn('Decoration provider::Mismatch in reference decorations', {
-          matches: referenceMatches.length,
-          ranges: referenceRanges.length,
-        });
-      }
-
       // Apply decorations
       this.activeEditor.setDecorations(this.definitionDecorationType, definitionRanges);
       this.activeEditor.setDecorations(this.referenceDecorationType, referenceRanges);

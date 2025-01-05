@@ -1,17 +1,15 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { DocumentBlock, CodeBlockLocation } from './entities';
+import { DocumentBlock, CodeBlockRange, NoWebReference } from './entities';
 import { PandocCodeBlock } from '../pandoc/types';
 import { DocumentParseError } from '../../utils/errors';
 import { PATTERNS } from '../../utils/constants';
 
 /** Interface for parsing literate programming documents */
 export interface ILiterateParser {
-  parseDocumentAndDecorateBlocks(
-    document: vscode.TextDocument,
-    blocks: readonly PandocCodeBlock[]
-  ): DocumentBlock[];
-  findBlockLocation(document: vscode.TextDocument, block: DocumentBlock): CodeBlockLocation | null;
+  parseDocumentCodeBlocks( document: vscode.TextDocument, blocks: readonly PandocCodeBlock[]): DocumentBlock[];
+  parseDocumentReferences(document: vscode.TextDocument): NoWebReference[];
+  findBlockLocation(document: vscode.TextDocument, block: DocumentBlock): CodeBlockRange | null;
   // findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
 }
 
@@ -23,7 +21,7 @@ export class LiterateParser implements ILiterateParser {
     this.logger = Logger.getInstance();
   }
 
-  public parseDocumentAndDecorateBlocks(
+  public parseDocumentCodeBlocks(
     document: vscode.TextDocument,
     blocks: readonly PandocCodeBlock[]
   ): DocumentBlock[] {
@@ -76,12 +74,36 @@ export class LiterateParser implements ILiterateParser {
     }
   }
 
+  public parseDocumentReferences(document: vscode.TextDocument): NoWebReference[] {
+    const references: NoWebReference[] = [];
+    const referenceMatches = Array.from(document.getText().matchAll(PATTERNS.ALL_REFERENCES));
+    for (const match of referenceMatches) {
+      // Ensure we have both the full match and captured group
+      if (match.index === undefined || !match[1]) {
+        continue;
+      }
+      const fullReferenceMatch = match[0];  // includes reference markers
+      const referenceIdentifier = match[1]; // just the identifier content
+      const startPos = document.positionAt(match.index);
+      const endPos = document.positionAt(match.index + fullReferenceMatch.length);
+      references.push({
+        identifier: referenceIdentifier,
+        location: {
+          uri: document.uri,
+          id_pos: new vscode.Range(startPos, endPos),
+        },
+      });
+    }
+    return references;
+  }
+
+
   private createBlockLocation(
     document: vscode.TextDocument,
     startLine: vscode.TextLine,
     endLine: vscode.TextLine,
     identifier: string
-  ): CodeBlockLocation {
+  ): CodeBlockRange {
     const idStart = startLine.text.indexOf(identifier);
     const idPos = new vscode.Range(
       startLine.range.start.translate(0, idStart),
@@ -119,7 +141,7 @@ export class LiterateParser implements ILiterateParser {
   public findBlockLocation(
     document: vscode.TextDocument,
     block: PandocCodeBlock
-  ): CodeBlockLocation | null {
+  ): CodeBlockRange | null {
     this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
       identifier: block.identifier,
       idCount: block.idCount,

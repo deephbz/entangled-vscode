@@ -5,6 +5,7 @@ import {
   DocumentBlock,
   CircularReference,
   DocumentBlocksByIdentifier,
+  NoWebReferenceByIdentifier,
 } from './entities';
 import { PandocCodeBlock } from '../pandoc/types';
 import { ILiterateParser, LiterateParser } from './parser';
@@ -30,6 +31,7 @@ export interface ILiterateManager {
 export class LiterateManager implements ILiterateManager {
   private static instance: LiterateManager;
   protected documentBlocks: DocumentBlocks = {};
+  protected referencesByIdentifier: NoWebReferenceByIdentifier = {};
   private logger: Logger;
   private parser: ILiterateParser;
 
@@ -51,39 +53,27 @@ export class LiterateManager implements ILiterateManager {
 
     try {
       const pandocCodeBlocks = await this.extractCodeBlocks(document);
-
-      if (pandocCodeBlocks.length === 0) {
-        this.logger.debug('manager::parseDocument::No code blocks found', {
-          uri,
-        });
-        return;
-      }
-
       this.logger.debug('manager::parseDocument::Code blocks extracted', {
         count: pandocCodeBlocks.length,
       });
 
-      // Clear existing blocks for this document
-      this.clearDocumentBlocks(uri);
+      if (pandocCodeBlocks.length === 0) return;
 
       // Process and add new blocks
-      try {
-        const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(
-          document,
-          pandocCodeBlocks
-        );
-        this.logger.debug('manager::parseDocument::Blocks processed', {
-          totalBlocks: processedBlocks.length,
-          withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
-        });
+      const processedBlocks = this.parser.parseDocumentCodeBlocks(
+        document,
+        pandocCodeBlocks
+      );
+      this.logger.debug('manager::parseDocument::Blocks processed', {
+        totalBlocks: processedBlocks.length,
+        withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
+      });
 
-        this.addDocumentBlocks(
-          uri,
-          processedBlocks.filter((b) => b.identifier)
-        );
-      } catch (error) {
-        throw new DocumentParseError(error instanceof Error ? error.message : String(error), uri);
-      }
+      this.clearDocumentBlocks(uri);
+      this.addDocumentBlocks(
+        uri,
+        processedBlocks.filter((b) => b.identifier)
+      );
 
       // Update dependencies
       this.updateDependencies();
@@ -111,6 +101,8 @@ export class LiterateManager implements ILiterateManager {
       //     );
       //     }
       // }
+    
+      this.referencesByIdentifier = this.parser.parseDocumentReferences(document);
     } catch (error) {
       if (error instanceof EntangledError) {
         throw error;
@@ -374,10 +366,6 @@ export class LiterateManager implements ILiterateManager {
       return undefined;
     }
     return docBlocks;
-  }
-
-  getDocumentsUris(): Iterable<string> {
-    return Object.keys(this.documentBlocks);
   }
 
   clearCache(): void {

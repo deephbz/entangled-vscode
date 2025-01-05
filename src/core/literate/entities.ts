@@ -2,19 +2,29 @@ import * as vscode from 'vscode';
 import { PandocCodeBlock } from '../pandoc/types';
 
 /** Location information for a code block within a document */
-export interface CodeBlockLocation {
+export interface DocumentRange {
   uri: vscode.Uri;
   id_pos: vscode.Range;
+}
+export interface CodeBlockRange extends DocumentRange {
   range: vscode.Range;
 }
 
 /** Represents a code block within a document with additional metadata */
 export interface DocumentBlock extends PandocCodeBlock {
-  location: CodeBlockLocation;
+  location: CodeBlockRange;
   expandedContent?: string;
   dependencies: Set<string>;
   dependents: Set<string>;
   // referenceRanges: vscode.Range[];
+}
+
+export interface NoWebReference {
+  identifier: string;
+  location: DocumentRange;
+}
+export interface NoWebReferenceByIdentifier {
+  [identifier: string]: NoWebReference;
 }
 
 /** Maps block identifiers to their document blocks */
