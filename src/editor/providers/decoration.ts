@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { LANGUAGE } from '../../utils/constants';
 import { defaultDecorationConfig, DecorationConfig } from '../../config/decoration';
-import { DocumentEntities, DocumentBlock, NoWebReference } from '../../core/literate/entities';
+import { DocumentEntities, NoWebReference } from '../../core/literate/entities';
 import { LiterateManager } from '../../core/literate/manager';
 
 type DecorationTypes = {
@@ -136,17 +136,26 @@ export class EntangledDecorationProvider implements vscode.Disposable {
     };
 
     // Process code blocks
-    Object.values(entities.blocks)
-      .flat()
-      .forEach((block: DocumentBlock) => {
-        decorations.definitionStyle!.push(block.location.range);
-      });
+    Object.entries(entities.blocks).forEach(([_, blocks]) => {
+      if (blocks.length > 0) {
+        // First block gets definition style
+        decorations.definitionStyle!.push(blocks[0].location.id_pos);
+        // Subsequent blocks get continuation style
+        blocks.slice(1).forEach((block) => {
+          decorations.continuationStyle!.push(block.location.id_pos);
+        });
+      }
+    });
 
     // Process references
     Object.values(entities.references)
       .flat()
       .forEach((ref: NoWebReference) => {
-        decorations.outBlockReferenceStyle!.push(ref.location.id_pos);
+        if (ref.isInCodeBlock) {
+          decorations.inBlockReferenceStyle!.push(ref.location.id_pos);
+        } else {
+          decorations.outBlockReferenceStyle!.push(ref.location.id_pos);
+        }
       });
 
     return decorations;

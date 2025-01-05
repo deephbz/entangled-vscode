@@ -11,7 +11,7 @@ export const defaultDecorationConfig: DecorationConfig = {
   definitionStyle: {
     backgroundColor: { id: 'entangled.definition.background' },
     color: { id: 'entangled.definition.foreground' },
-    fontWeight: 'bold',
+    fontStyle: 'bold italic',
     before: {
       contentText: '📝',
       margin: '0 4px 0 0',
@@ -20,7 +20,7 @@ export const defaultDecorationConfig: DecorationConfig = {
   continuationStyle: {
     backgroundColor: { id: 'entangled.continuation.background' },
     color: { id: 'entangled.continuation.foreground' },
-    fontStyle: 'italic',
+    fontStyle: 'bold italic',
     before: {
       contentText: '↪',
       margin: '0 4px 0 0',

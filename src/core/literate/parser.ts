@@ -92,6 +92,7 @@ export class LiterateParser implements ILiterateParser {
           uri: document.uri,
           id_pos: new vscode.Range(startPos, endPos),
         },
+        isInCodeBlock: false,
       });
     }
     return references;
@@ -105,7 +106,7 @@ export class LiterateParser implements ILiterateParser {
   ): CodeBlockLocation {
     const idStart = startLine.text.indexOf(identifier);
     const idPos = new vscode.Range(
-      startLine.range.start.translate(0, idStart - 1),  // -1 to account for '#'
+      startLine.range.start.translate(0, idStart - 1), // -1 to account for '#'
       startLine.range.start.translate(0, idStart + identifier.length)
     );
 

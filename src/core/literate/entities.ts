@@ -23,6 +23,7 @@ export interface DocumentBlock extends PandocCodeBlock {
 /** Reference without web content */
 export interface NoWebReference extends IdentifiableEntity {
   location: DocumentRange;
+  isInCodeBlock: boolean;
 }
 /** Single document level collections */
 export interface DocumentEntities {
