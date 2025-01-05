@@ -31,7 +31,39 @@ export class PandocService {
     return PandocService.instance;
   }
 
-  private async executePandoc(input: string, args: string[]): Promise<string> {
+  public async getCodeBlocksFromDocument(
+    document: vscode.TextDocument
+  ): Promise<PandocCodeBlock[]> {
+    const ast = await this.convertToPandocAST(document);
+    return this.extractCodeBlocks(ast);
+  }
+
+  private async convertToPandocAST(document: vscode.TextDocument): Promise<PandocAST> {
+    this.logger.debug('PandocService::Converting document to AST', {
+      uri: document.uri.toString(),
+      size: document.getText().length,
+    });
+
+    try {
+      const args = ['-f', LANGUAGE.PANDOC_FORMAT, '-t', 'json'];
+
+      const result = await this.subProcessRunPandoc(document.getText(), args);
+      const ast = JSON.parse(result) as PandocAST;
+
+      this.logger.debug('PandocService::Document converted to AST successfully');
+      return ast;
+    } catch (error) {
+      if (error instanceof PandocError) {
+        throw error;
+      }
+      throw new PandocError(
+        'Failed to convert document to AST',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  private async subProcessRunPandoc(input: string, args: string[]): Promise<string> {
     this.logger.debug('PandocService::Executing pandoc', { args });
 
     return new Promise((resolve, reject) => {
@@ -69,32 +101,7 @@ export class PandocService {
     });
   }
 
-  async convertToAST(document: vscode.TextDocument): Promise<PandocAST> {
-    this.logger.debug('PandocService::Converting document to AST', {
-      uri: document.uri.toString(),
-      size: document.getText().length,
-    });
-
-    try {
-      const args = ['-f', LANGUAGE.PANDOC_FORMAT, '-t', 'json'];
-
-      const result = await this.executePandoc(document.getText(), args);
-      const ast = JSON.parse(result) as PandocAST;
-
-      this.logger.debug('PandocService::Document converted to AST successfully');
-      return ast;
-    } catch (error) {
-      if (error instanceof PandocError) {
-        throw error;
-      }
-      throw new PandocError(
-        'Failed to convert document to AST',
-        error instanceof Error ? error.message : String(error)
-      );
-    }
-  }
-
-  extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
+  private extractCodeBlocks(ast: PandocAST): PandocCodeBlock[] {
     this.logger.debug('PandocService::Extracting code blocks from AST');
 
     try {
