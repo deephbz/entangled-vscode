@@ -80,6 +80,12 @@ export class LiterateParser implements ILiterateParser {
       const referenceIdentifier = match[1]; // just the identifier content
       const startPos = document.positionAt(match.index);
       const endPos = document.positionAt(match.index + fullReferenceMatch.length);
+      this.logger.debug('LiterateParser::parseDocumentReferences:: Found reference', {
+        full: match[0],
+        id: match[1],
+        start: startPos,
+        end: endPos,
+      });
       references.push({
         identifier: referenceIdentifier,
         location: {

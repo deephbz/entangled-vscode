@@ -15,8 +15,6 @@ import { PandocService } from '../pandoc/service';
 export interface ILiterateManager {
   getDocumentEntities(uri: string): DocumentEntities | undefined;
   parseDocument(document: vscode.TextDocument): Promise<void>;
-  findDefinition(identifier: string): Promise<vscode.Location | null>;
-  findReferences(identifier: string): Promise<vscode.Location[]>;
   findCircularReferences(): CircularReference[];
   getExpandedContent(identifier: string): string;
   clearCache(): void;
@@ -68,8 +66,16 @@ export class LiterateManager implements ILiterateManager {
         this.workspace[uri].blocks[block.identifier].push(block);
       }
       for (const ref of references) {
-        this.workspace[uri].references[ref.identifier] = ref;
+        if (!this.workspace[uri].references[ref.identifier]) {
+          this.workspace[uri].references[ref.identifier] = [];
+        }
+        this.workspace[uri].references[ref.identifier].push(ref);
       }
+      this.logger.debug('manager::parseDocument::Parsed document', {
+        uri,
+        blocks: Object.values(this.workspace[uri].blocks),
+        references: Object.values(this.workspace[uri].references),
+      });
 
       // Update dependencies // TODO: only for blocks now
       this.updateDependencies();
@@ -143,52 +149,6 @@ export class LiterateManager implements ILiterateManager {
         }
       }
     }
-  }
-
-  findDefinition(identifier: string): Promise<vscode.Location | null> {
-    this.logger.debug('manager::findDefinition::Finding', { identifier });
-
-    const locations = Object.values(this.workspace)
-      .flatMap((docEntities) => Object.values(docEntities.blocks))
-      .flatMap((blocks) => blocks)
-      .filter((block) => block.identifier === identifier)
-      .map((block) => new vscode.Location(block.location.uri, block.location.range));
-
-    if (locations.length === 0) {
-      this.logger.debug('manager::findDefinition::No definitions found', {
-        identifier,
-      });
-      return Promise.resolve(null);
-    } else {
-      this.logger.debug('manager::findDefinition::Definitions found', {
-        identifier,
-        count: locations.length,
-        locations: locations.map((loc) => loc.uri.toString()),
-      });
-      return Promise.resolve(locations[0]);
-    }
-  }
-
-  findReferences(identifier: string): Promise<vscode.Location[]> {
-    const locations = Object.values(this.workspace)
-      .flatMap((docEntities) => Object.values(docEntities.blocks))
-      .flatMap((blocks) => blocks)
-      .filter((block) => block.dependencies.has(identifier))
-      .map((block) => new vscode.Location(block.location.uri, block.location.range));
-
-    if (locations.length === 0) {
-      this.logger.debug('manager::findReferences::No references found', {
-        identifier,
-      });
-    } else {
-      this.logger.debug('manager::findReferences::References found', {
-        identifier,
-        count: locations.length,
-        locations: locations.map((loc) => loc.uri.toString()),
-      });
-    }
-
-    return Promise.resolve(locations);
   }
 
   findCircularReferences(): CircularReference[] {

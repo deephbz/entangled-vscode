@@ -27,7 +27,7 @@ export interface NoWebReference extends IdentifiableEntity {
 /** Single document level collections */
 export interface DocumentEntities {
   blocks: Record<string, DocumentBlock[]>;
-  references: Record<string, NoWebReference>;
+  references: Record<string, NoWebReference[]>;
 }
 
 /** Workspace level collection mapping URIs to document entities */
