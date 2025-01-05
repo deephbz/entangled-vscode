@@ -15,7 +15,7 @@ export interface ILiterateParser {
     document: vscode.TextDocument,
     block: DocumentBlock
   ): CodeBlockLocation | null;
-  findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
+  // findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
 }
 
 /** Default implementation of the literate programming parser */
@@ -46,13 +46,20 @@ export class LiterateParser implements ILiterateParser {
           });
           continue;
         }
+        this.logger.debug('LiterateParser::parseDocumentAndDecorateBlocks:: Block location found', {
+          id: block.identifier,
+          cnt: block.blockCount,
+          idCnt: block.idCount,
+          id_pos: location.id_pos,
+          block_range: location.range,
+        });
 
-        const references = this.findReferencesUsedInBlock(document, block);
+        // const references = this.findReferencesUsedInBlock(document, block);
         // this.logger.debug('Parser::parseDocumentAndDecorateBlocks:: pandocBlock ', { block, references });
         documentBlocks.push({
           ...block,
           location,
-          referenceRanges: references,
+          // referenceRanges: references,
           dependencies: new Set<string>(block.references),
           dependents: new Set<string>(),
         });
@@ -72,20 +79,63 @@ export class LiterateParser implements ILiterateParser {
     }
   }
 
+  private createBlockLocation(
+    document: vscode.TextDocument,
+    startLine: vscode.TextLine,
+    endLine: vscode.TextLine,
+    identifier: string
+  ): CodeBlockLocation {
+    const idStart = startLine.text.indexOf(identifier);
+    const idPos = new vscode.Range(
+      startLine.range.start.translate(0, idStart),
+      startLine.range.start.translate(0, idStart + identifier.length)
+    );
+
+    return {
+      uri: document.uri,
+      id_pos: idPos,
+      range: new vscode.Range(startLine.range.start, endLine.range.end),
+    };
+  }
+
+  private findClosingFence(
+    document: vscode.TextDocument,
+    startLineNum: number
+  ): vscode.TextLine | null {
+    for (let i = startLineNum + 1; i < document.lineCount; i++) {
+      const line = document.lineAt(i);
+      if (line.text.trim() === '```') {
+        return line;
+      }
+    }
+    return null;
+  }
+
+  private isBlockIdentifierMatch(
+    line: string,
+    targetIdentifier: string
+  ): boolean {
+    const match = line.trim().match(PATTERNS.CODE_BLOCK_OPEN);
+    if (!match) return false;
+
+    const idMatch = match[1].match(PATTERNS.BLOCK_IDENTIFIER);
+    return idMatch ? idMatch[1] === targetIdentifier : false;
+  }
+
   public findBlockLocation(
     document: vscode.TextDocument,
     block: PandocCodeBlock
   ): CodeBlockLocation | null {
     this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
       identifier: block.identifier,
+      idCount: block.idCount,
       uri: document.uri.toString(),
     });
 
     try {
-      const lineCount = document.lineCount;
-      let inCodeBlock = false;
+      let currentIdCount = 0;
 
-      for (let i = 0; i < lineCount; i++) {
+      for (let i = 0; i < document.lineCount; i++) {
         const line = document.lineAt(i);
         const trimmedText = line.text.trim();
 
@@ -93,108 +143,91 @@ export class LiterateParser implements ILiterateParser {
           continue;
         }
 
-        if (!inCodeBlock) {
-          const match = trimmedText.match(PATTERNS.CODE_BLOCK_OPEN);
-          if (match) {
-            const idMatch = match[1].match(PATTERNS.BLOCK_IDENTIFIER);
-            if (idMatch && idMatch[1] === block.identifier) {
-              inCodeBlock = true;
-              const startPos = line.range.start;
-              
-              // Calculate the position of the identifier within the line
-              const idStart = line.text.indexOf(block.identifier);
-              const idPos = new vscode.Range(
-                line.range.start.translate(0, idStart),
-                line.range.start.translate(0, idStart + block.identifier.length)
-              );
-              
-              // Find the closing fence
-              for (let j = i + 1; j < lineCount; j++) {
-                const endLine = document.lineAt(j);
-                const endText = endLine.text.trim();
-                
-                if (endText === '```') {
-                  const endPos = endLine.range.end;
-                  
-                  this.logger.debug('LiterateParser::findBlockLocation::Block location found', {
-                    identifier: block.identifier,
-                    startLine: i,
-                    endLine: j,
-                  });
-
-                  return {
-                    uri: document.uri,
-                    id_pos: idPos,
-                    range: new vscode.Range(startPos, endPos),
-                  };
-                }
-              }
-              
-              // If we reach here, no closing fence was found
-              this.logger.warn('LiterateParser::findBlockLocation::No closing fence found', {
-                identifier: block.identifier,
-                startLine: i,
-              });
-              return null;
-            }
-          }
-        } else if (trimmedText === '```') {
-          inCodeBlock = false;
+        if (!this.isBlockIdentifierMatch(line.text, block.identifier)) {
+          continue;
         }
+
+        if (currentIdCount !== block.idCount) {
+          currentIdCount++;
+          continue;
+        }
+
+        // Found the matching block, now find its closing fence
+        const closingLine = this.findClosingFence(document, i);
+        if (!closingLine) {
+          this.logger.warn('LiterateParser::findBlockLocation::No closing fence found', {
+            identifier: block.identifier,
+            idCount: block.idCount,
+            startLine: i,
+          });
+          return null;
+        }
+
+        return this.createBlockLocation(
+          document,
+          line,
+          closingLine,
+          block.identifier
+        );
       }
 
       this.logger.debug('LiterateParser::findBlockLocation::Block not found', {
         identifier: block.identifier,
+        idCount: block.idCount,
       });
       return null;
-
-    } catch (error) {
-      this.logger.error('LiterateParser::findBlockLocation::Error finding block location', error instanceof Error ? error : new Error(String(error)), {
-        identifier: block.identifier,
-      });
-      return null;
-    }
-  }
-
-  public findReferencesUsedInBlock(
-    document: vscode.TextDocument,
-    block: PandocCodeBlock
-  ): vscode.Range[] {
-    this.logger.debug('LiterateParser::findReferences::Finding references', {
-      identifier: block.identifier,
-      uri: document.uri.toString(),
-    });
-
-    const ranges: vscode.Range[] = [];
-    const text = document.getText();
-
-    try {
-      for (const ref of block.references) {
-        const pattern = PATTERNS.BLOCK_REFERENCE(ref);
-        let match;
-
-        while ((match = pattern.exec(text)) !== null) {
-          const startPos = document.positionAt(match.index);
-          const endPos = document.positionAt(match.index + match[0].length);
-          ranges.push(new vscode.Range(startPos, endPos));
-        }
-      }
-
-      this.logger.debug('LiterateParser::findReferences::References found', {
-        identifier: block.identifier,
-        count: ranges.length,
-      });
-
-      return ranges;
     } catch (error) {
       this.logger.error(
-        'Error finding references',
+        'LiterateParser::findBlockLocation::Error finding block location',
         error instanceof Error ? error : new Error(String(error)),
         {
           identifier: block.identifier,
+          idCount: block.idCount,
         }
       );
-      return [];
+      return null;
     }
   }
+
+  // public findReferencesUsedInBlock(
+  //   document: vscode.TextDocument,
+  //   block: PandocCodeBlock
+  // ): vscode.Range[] {
+  //   this.logger.debug('LiterateParser::findReferences::Finding references', {
+  //     identifier: block.identifier,
+  //     uri: document.uri.toString(),
+  //   });
+
+  //   const ranges: vscode.Range[] = [];
+  //   const text = document.getText();
+
+  //   try {
+  //     for (const ref of block.references) {
+  //       const pattern = PATTERNS.BLOCK_REFERENCE(ref);
+  //       let match;
+
+  //       while ((match = pattern.exec(text)) !== null) {
+  //         const startPos = document.positionAt(match.index);
+  //         const endPos = document.positionAt(match.index + match[0].length);
+  //         ranges.push(new vscode.Range(startPos, endPos));
+  //       }
+  //     }
+
+  //     this.logger.debug('LiterateParser::findReferences::References found', {
+  //       identifier: block.identifier,
+  //       count: ranges.length,
+  //     });
+
+  //     return ranges;
+  //   } catch (error) {
+  //     this.logger.error(
+  //       'Error finding references',
+  //       error instanceof Error ? error : new Error(String(error)),
+  //       {
+  //         identifier: block.identifier,
+  //       }
+  //     );
+  //     return [];
+  //   }
+  // }
 }

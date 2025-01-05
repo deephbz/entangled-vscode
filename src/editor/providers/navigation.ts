@@ -28,7 +28,9 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     // Find the block that contains this position
     for (const block of documentBlocks) {
       // Check references first
-      for (const range of block.referenceRanges) {
+      for (const ref of block.references) {
+        const range = documentBlocks.find((b) => b.identifier === ref)?.location.range;
+        if (!range) continue;
         if (range.contains(position)) {
           const identifier = Array.from(block.dependencies)[0];
           if (!identifier) continue;
@@ -90,7 +92,9 @@ export class EntangledReferenceProvider implements vscode.ReferenceProvider {
       }
 
       // Check if we're on a reference
-      for (const range of block.referenceRanges) {
+      for (const ref of block.references) {
+        const range = documentBlocks.find((b) => b.identifier === ref)?.location.range;
+        if (!range) continue;
         if (range.contains(position)) {
           const identifier = Array.from(block.dependencies)[0];
           if (!identifier) continue;
@@ -133,7 +137,9 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
     // Find the block that contains this position
     for (const block of documentBlocks) {
       // Check references first
-      for (const range of block.referenceRanges) {
+      for (const ref of block.references) {
+        const range = documentBlocks.find((b) => b.identifier === ref)?.location.range;
+        if (!range) continue;
         if (range.contains(position)) {
           const identifier = Array.from(block.dependencies)[0];
           if (!identifier) continue;

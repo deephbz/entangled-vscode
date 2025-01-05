@@ -14,7 +14,7 @@ export interface DocumentBlock extends PandocCodeBlock {
   expandedContent?: string;
   dependencies: Set<string>;
   dependents: Set<string>;
-  referenceRanges: vscode.Range[];
+  // referenceRanges: vscode.Range[];
 }
 
 /** Maps block identifiers to their document blocks */
