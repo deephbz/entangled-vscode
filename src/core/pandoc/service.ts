@@ -2,19 +2,12 @@ import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { PandocError } from '../../utils/errors';
 import { LANGUAGE, PATTERNS } from '../../utils/constants';
-import { PandocCodeBlock } from './types';
+import { PandocCodeBlock, PandocAST, PandocASTNode } from './types';
 import { spawn } from 'child_process';
 
-// Type definitions for Pandoc AST
+// Type definitions for Pandoc attribute parsing
 type PandocAttribute = [string | null, string[], [string, string][]];
 type PandocCodeBlockData = [PandocAttribute, string];
-interface PandocBlock {
-  t: string;
-  c: PandocCodeBlockData | PandocBlock[];
-}
-interface PandocAST {
-  blocks: PandocBlock[];
-}
 
 export class PandocService {
   private static instance: PandocService;
@@ -120,7 +113,7 @@ export class PandocService {
         return currentCount;
       };
 
-      const extractFromBlock = (block: PandocBlock): void => {
+      const extractFromBlock = (block: PandocASTNode): void => {
         if (block.t === 'CodeBlock') {
           const [attributes, content] = block.c as PandocCodeBlockData;
           const [[rawId = '', classes = [], keyVals]] = [attributes];
@@ -153,7 +146,7 @@ export class PandocService {
         } else if (Array.isArray(block.c)) {
           for (const child of block.c) {
             if (typeof child === 'object' && child !== null) {
-              extractFromBlock(child as PandocBlock);
+              extractFromBlock(child as PandocASTNode);
             }
           }
         }
