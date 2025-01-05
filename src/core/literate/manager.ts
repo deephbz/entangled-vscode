@@ -1,11 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import {
-  WorkspaceEntities,
-  DocumentEntities,
-  DocumentBlock,
-  CircularReference,
-} from './entities';
+import { WorkspaceEntities, DocumentEntities, DocumentBlock, CircularReference } from './entities';
 import { PandocCodeBlock } from '../pandoc/types';
 import { ILiterateParser, LiterateParser } from './parser';
 import {
@@ -25,6 +20,7 @@ export interface ILiterateManager {
   findCircularReferences(): CircularReference[];
   getExpandedContent(identifier: string): string;
   clearCache(): void;
+  getDocumentBlocks(uri: string): Record<string, DocumentBlock[]> | undefined;
 }
 
 export class LiterateManager implements ILiterateManager {
@@ -53,10 +49,7 @@ export class LiterateManager implements ILiterateManager {
       // Process blocks (definitions)
       const pandocCodeBlocks = await this.extractCodeBlocks(document);
       if (pandocCodeBlocks.length === 0) return;
-      const processedBlocks = this.parser.parseDocumentCodeBlocks(
-        document,
-        pandocCodeBlocks
-      );
+      const processedBlocks = this.parser.parseDocumentCodeBlocks(document, pandocCodeBlocks);
       this.logger.debug('manager::parseDocument::Blocks processed', {
         numPandocBlocks: pandocCodeBlocks.length,
         numProcessedBlocks: processedBlocks.length,
@@ -78,7 +71,7 @@ export class LiterateManager implements ILiterateManager {
         this.workspace[uri].references[ref.identifier] = ref;
       }
 
-      // Update dependencies // TODO: only for blocks now 
+      // Update dependencies // TODO: only for blocks now
       this.updateDependencies();
 
       // Check for circular references
@@ -104,10 +97,7 @@ export class LiterateManager implements ILiterateManager {
       const pandocBlocks = await pandocService.getCodeBlocksFromDocument(document);
       return pandocBlocks;
     } catch (error) {
-      this.logger.error(
-        'Failed to extract code blocks',
-        error instanceof Error ? error : new Error(String(error))
-      );
+      this.logger.error('Failed to extract code blocks', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -118,7 +108,7 @@ export class LiterateManager implements ILiterateManager {
     if (!this.workspace[uri]) {
       this.workspace[uri] = {
         blocks: {},
-        references: {}
+        references: {},
       };
     }
   }
@@ -284,10 +274,7 @@ export class LiterateManager implements ILiterateManager {
       if (error instanceof CircularReferenceError) {
         throw error;
       }
-      throw new BlockSyntaxError(
-        error instanceof Error ? error.message : String(error),
-        identifier
-      );
+      throw new BlockSyntaxError(error instanceof Error ? error.message : String(error), identifier);
     }
   }
 
@@ -329,6 +316,10 @@ export class LiterateManager implements ILiterateManager {
 
   getDocumentEntities(uri: string): DocumentEntities | undefined {
     return this.workspace[uri];
+  }
+
+  getDocumentBlocks(uri: string): Record<string, DocumentBlock[]> | undefined {
+    return this.getDocumentEntities(uri)?.blocks;
   }
 
   clearCache(): void {

@@ -86,13 +86,10 @@ export class DecorationProvider {
 
   private async updateDecorations(): Promise<void> {
     if (!this.activeEditor || this.activeEditor.document.languageId !== LANGUAGE.ID) {
-      this.logger.debug(
-        'Decoration provider::Skipping decoration update for non-markdown document',
-        {
-          uri: this.activeEditor?.document.uri.toString(),
-          languageId: this.activeEditor?.document.languageId,
-        }
-      );
+      this.logger.debug('Decoration provider::Skipping decoration update for non-markdown document', {
+        uri: this.activeEditor?.document.uri.toString(),
+        languageId: this.activeEditor?.document.languageId,
+      });
       return;
     }
 
@@ -144,13 +141,9 @@ export class DecorationProvider {
         references: referenceRanges.length,
       });
     } catch (error) {
-      this.logger.error(
-        'Error updating decorations',
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          uri: this.activeEditor.document.uri.toString(),
-        }
-      );
+      this.logger.error('Error updating decorations', error instanceof Error ? error : new Error(String(error)), {
+        uri: this.activeEditor.document.uri.toString(),
+      });
     }
   }
 

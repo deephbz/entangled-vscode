@@ -1,46 +1,60 @@
 import * as vscode from 'vscode';
-import { DocumentBlock } from '../../core/literate/entities';
+import { DocumentBlock, NoWebReference } from '../../core/literate/entities';
 import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
 
-export class EntangledNavigationProvider
-  implements
-    vscode.DocumentSymbolProvider,
-    vscode.DefinitionProvider,
-    vscode.ReferenceProvider,
-    vscode.HoverProvider
-{
-  private logger: Logger;
-  private manager: LiterateManager;
+interface BlockReference {
+  block: DocumentBlock;
+  refIdentifier: string;
+}
 
-  constructor() {
-    this.logger = Logger.getInstance();
-    this.manager = LiterateManager.getInstance();
+interface BlockWithIdentifier {
+  identifier: string;
+  block: DocumentBlock;
+}
+
+export class EntangledNavigationProvider
+  implements vscode.DocumentSymbolProvider, vscode.DefinitionProvider, vscode.ReferenceProvider, vscode.HoverProvider
+{
+  private static readonly REFERENCE_REGEX = /<<([^>]+)>>/g;
+
+  private readonly logger = Logger.getInstance();
+  private readonly manager = LiterateManager.getInstance();
+
+  /** Find a NoWebReference at a given position */
+  private findNoWebReferenceAtPosition(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): NoWebReference | undefined {
+    const entities = this.manager.getDocumentEntities(document.uri.toString());
+    if (!entities?.references) return undefined;
+
+    return Object.values(entities.references).find((ref) => ref.location.id_pos.contains(position));
   }
 
   /** Find the block and reference at a given position */
   private findBlockAndReferenceAtPosition(
     document: vscode.TextDocument,
     position: vscode.Position
-  ): { block: DocumentBlock; refIdentifier: string } | null {
+  ): BlockReference | null {
     const documentBlocks = this.manager.getDocumentBlocks(document.uri.toString());
     if (!documentBlocks) return null;
 
-    // Search through all blocks in the document
-    for (const [_, blocks] of Object.entries(documentBlocks)) {
+    const line = document.lineAt(position.line).text;
+    const matches = Array.from(line.matchAll(EntangledNavigationProvider.REFERENCE_REGEX));
+
+    for (const blocks of Object.values(documentBlocks)) {
       for (const block of blocks) {
-        // Check if we're in a reference within this block
-        if (block.location.range.contains(position)) {
-          // Find which reference we're on by checking the content
-          const line = document.lineAt(position.line).text;
-          const matches = Array.from(line.matchAll(/<<([^>]+)>>/g));
-          for (const match of matches) {
-            const start = match.index!;
-            const end = start + match[0].length;
-            if (start <= position.character && position.character <= end) {
-              return { block, refIdentifier: match[1] };
-            }
-          }
+        if (!block.location.range.contains(position)) continue;
+
+        const reference = matches.find((match) => {
+          const start = match.index!;
+          const end = start + match[0].length;
+          return start <= position.character && position.character <= end;
+        });
+
+        if (reference) {
+          return { block, refIdentifier: reference[1] };
         }
       }
     }
@@ -48,146 +62,137 @@ export class EntangledNavigationProvider
   }
 
   /** Find the block at a given position */
-  private findBlockAtPosition(
-    document: vscode.TextDocument,
-    position: vscode.Position
-  ): { identifier: string; block: DocumentBlock } | null {
+  private findBlockAtPosition(document: vscode.TextDocument, position: vscode.Position): BlockWithIdentifier | null {
     const documentBlocks = this.manager.getDocumentBlocks(document.uri.toString());
     if (!documentBlocks) return null;
 
     for (const [identifier, blocks] of Object.entries(documentBlocks)) {
-      for (const block of blocks) {
-        if (block.location.range.contains(position)) {
-          return { identifier, block };
-        }
+      const block = blocks.find((b) => b.location.id_pos.contains(position));
+      if (block) {
+        return { identifier, block };
       }
     }
     return null;
   }
 
-  /** Provide document symbols for the outline view */
-  provideDocumentSymbols(
+  /** Create metadata string for a block */
+  private createBlockMetadata(block: DocumentBlock): string {
+    const metadata = [
+      `Block #${block.blockCount}`,
+      block.language && `Language: ${block.language}`,
+      block.dependencies.size > 0 && `Dependencies: ${Array.from(block.dependencies).join(', ')}`,
+      block.dependents.size > 0 && `Referenced by: ${Array.from(block.dependents).join(', ')}`,
+    ].filter(Boolean);
+
+    return metadata.join('\n');
+  }
+
+  async provideDocumentSymbols(
     document: vscode.TextDocument,
     token: vscode.CancellationToken
-  ): vscode.ProviderResult<vscode.DocumentSymbol[]> {
-    this.logger.debug('navigation::provideDocumentSymbols', {
-      uri: document.uri.toString(),
-    });
+  ): Promise<vscode.DocumentSymbol[]> {
+    this.logger.debug('navigation::provideDocumentSymbols', { uri: document.uri.toString() });
 
-    if (token.isCancellationRequested) {
-      return [];
-    }
+    if (token.isCancellationRequested) return [];
 
     const documentBlocks = this.manager.getDocumentBlocks(document.uri.toString());
     if (!documentBlocks) return [];
 
-    const symbols: vscode.DocumentSymbol[] = [];
-
-    for (const [identifier, blocks] of Object.entries(documentBlocks)) {
-      for (const block of blocks) {
-        // Create a symbol for each block
+    return Object.entries(documentBlocks).flatMap(([identifier, blocks]) =>
+      blocks.map((block) => {
         const symbol = new vscode.DocumentSymbol(
           identifier,
           `Code block #${block.blockCount}`,
           vscode.SymbolKind.Class,
           block.location.range,
-          block.location.id_pos // Use the identifier position for the selection range
+          block.location.id_pos
         );
-
-        // Add details about dependencies and language
-        symbol.detail = [
-          block.language && `Language: ${block.language}`,
-          block.dependencies.size > 0 &&
-            `Dependencies: ${Array.from(block.dependencies).join(', ')}`,
-          block.dependents.size > 0 && `Referenced by: ${Array.from(block.dependents).join(', ')}`,
-        ]
-          .filter(Boolean)
-          .join(' | ');
-
-        symbols.push(symbol);
-      }
-    }
-
-    return symbols;
+        symbol.detail = this.createBlockMetadata(block);
+        return symbol;
+      })
+    );
   }
 
-  /** Provide definitions for code block references */
-  provideDefinition(
+  async provideDefinition(
     document: vscode.TextDocument,
     position: vscode.Position,
     token: vscode.CancellationToken
-  ): vscode.ProviderResult<vscode.Definition> {
+  ): Promise<vscode.Definition | null> {
     this.logger.debug('navigation::provideDefinition', {
       uri: document.uri.toString(),
       position: `${position.line}:${position.character}`,
     });
 
-    if (token.isCancellationRequested) {
-      return null;
+    if (token.isCancellationRequested) return null;
+
+    // First check NoWebReferences
+    const noWebRef = this.findNoWebReferenceAtPosition(document, position);
+    if (noWebRef) {
+      return new vscode.Location(noWebRef.location.uri, noWebRef.location.id_pos);
     }
 
-    // Check if we're on a reference
+    // Then check block references
     const blockAndRef = this.findBlockAndReferenceAtPosition(document, position);
     if (blockAndRef) {
       return this.manager.findDefinition(blockAndRef.refIdentifier);
     }
 
-    // Check if we're on a block definition
+    // Finally check block definitions
     const blockAtPos = this.findBlockAtPosition(document, position);
-    if (blockAtPos) {
-      return new vscode.Location(document.uri, blockAtPos.block.location.range);
-    }
-
-    return null;
+    return blockAtPos ? new vscode.Location(document.uri, blockAtPos.block.location.id_pos) : null;
   }
 
-  /** Provide all references to a code block */
-  provideReferences(
+  async provideReferences(
     document: vscode.TextDocument,
     position: vscode.Position,
     _: vscode.ReferenceContext,
     token: vscode.CancellationToken
-  ): vscode.ProviderResult<vscode.Location[]> {
+  ): Promise<vscode.Location[]> {
     this.logger.debug('navigation::provideReferences', {
       uri: document.uri.toString(),
       position: `${position.line}:${position.character}`,
     });
 
-    if (token.isCancellationRequested) {
-      return [];
+    if (token.isCancellationRequested) return [];
+
+    // First check NoWebReferences
+    const noWebRef = this.findNoWebReferenceAtPosition(document, position);
+    if (noWebRef) {
+      return [new vscode.Location(noWebRef.location.uri, noWebRef.location.id_pos)];
     }
 
-    // First check if we're on a reference
+    // Then check block references
     const blockAndRef = this.findBlockAndReferenceAtPosition(document, position);
     if (blockAndRef) {
       return this.manager.findReferences(blockAndRef.refIdentifier);
     }
 
-    // Then check if we're on a block definition
+    // Finally check block definitions
     const blockAtPos = this.findBlockAtPosition(document, position);
-    if (blockAtPos) {
-      return this.manager.findReferences(blockAtPos.identifier);
-    }
-
-    return [];
+    return blockAtPos ? this.manager.findReferences(blockAtPos.identifier) : [];
   }
 
-  /** Provide hover information for code blocks and references */
-  provideHover(
+  async provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,
     token: vscode.CancellationToken
-  ): vscode.ProviderResult<vscode.Hover> {
+  ): Promise<vscode.Hover | null> {
     this.logger.debug('navigation::provideHover', {
       uri: document.uri.toString(),
       position: `${position.line}:${position.character}`,
     });
 
-    if (token.isCancellationRequested) {
-      return null;
+    if (token.isCancellationRequested) return null;
+
+    // First check NoWebReferences
+    const noWebRef = this.findNoWebReferenceAtPosition(document, position);
+    if (noWebRef) {
+      const markdown = new vscode.MarkdownString();
+      markdown.appendText(`Reference to ${noWebRef.identifier}`);
+      return new vscode.Hover(markdown);
     }
 
-    // Check if we're on a reference
+    // Then check block references
     const blockAndRef = this.findBlockAndReferenceAtPosition(document, position);
     if (blockAndRef) {
       try {
@@ -204,25 +209,12 @@ export class EntangledNavigationProvider
       }
     }
 
-    // Check if we're on a block definition
+    // Finally check block definitions
     const blockAtPos = this.findBlockAtPosition(document, position);
     if (blockAtPos) {
       const markdown = new vscode.MarkdownString();
-      markdown.appendCodeblock(blockAtPos.block.content, blockAtPos.block.language || 'markdown');
-
-      // Add metadata
-      const metadata = [
-        `Block #${blockAtPos.block.blockCount}`,
-        blockAtPos.block.language && `Language: ${blockAtPos.block.language}`,
-        blockAtPos.block.dependencies.size > 0 &&
-          `Dependencies: ${Array.from(blockAtPos.block.dependencies).join(', ')}`,
-        blockAtPos.block.dependents.size > 0 &&
-          `Referenced by: ${Array.from(blockAtPos.block.dependents).join(', ')}`,
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      markdown.appendMarkdown('\n\n---\n\n' + metadata);
+      markdown.appendCodeblock(blockAtPos.block.content, blockAtPos.block.language ?? 'markdown');
+      markdown.appendMarkdown('\n\n---\n\n' + this.createBlockMetadata(blockAtPos.block));
       return new vscode.Hover(markdown);
     }
 

@@ -41,12 +41,7 @@ export class Logger {
     return message;
   }
 
-  private log(
-    level: LogEntry['level'],
-    message: string,
-    error?: Error,
-    data?: Record<string, unknown>
-  ): void {
+  private log(level: LogEntry['level'], message: string, error?: Error, data?: Record<string, unknown>): void {
     if (level === 'debug' && !this.isDebugEnabled) {
       return;
     }

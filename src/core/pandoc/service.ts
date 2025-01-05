@@ -24,9 +24,7 @@ export class PandocService {
     return PandocService.instance;
   }
 
-  public async getCodeBlocksFromDocument(
-    document: vscode.TextDocument
-  ): Promise<PandocCodeBlock[]> {
+  public async getCodeBlocksFromDocument(document: vscode.TextDocument): Promise<PandocCodeBlock[]> {
     const ast = await this.convertToPandocAST(document);
     return this.extractCodeBlocks(ast);
   }
@@ -127,9 +125,7 @@ export class PandocService {
               language: classes[0]?.replace('.', '') || '',
               extraClasses: classes.slice(1)?.map((c) => c.replace('.', '')) || [],
               content,
-              references: Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map(
-                (match) => match[1]
-              ),
+              references: Array.from(content.matchAll(PATTERNS.ALL_REFERENCES)).map((match) => match[1]),
               keyValuePairs: keyVals as [string, string][],
             });
 

@@ -11,8 +11,7 @@ import { LANGUAGE } from './utils/constants';
 const logger = Logger.getInstance();
 
 // Document Processing
-const isMarkdownDocument = (document: vscode.TextDocument): boolean =>
-  document.languageId === LANGUAGE.ID;
+const isMarkdownDocument = (document: vscode.TextDocument): boolean => document.languageId === LANGUAGE.ID;
 
 const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
   // Skip non-file documents and output channels
@@ -96,10 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     logger.info('Extension activated successfully');
   } catch (error) {
-    logger.error(
-      'Failed to activate extension',
-      error instanceof Error ? error : new Error(String(error))
-    );
+    logger.error('Failed to activate extension', error instanceof Error ? error : new Error(String(error)));
     vscode.window.showErrorMessage('Failed to activate EntangleD extension');
   }
 }

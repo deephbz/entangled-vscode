@@ -7,7 +7,7 @@ import { PATTERNS } from '../../utils/constants';
 
 /** Interface for parsing literate programming documents */
 export interface ILiterateParser {
-  parseDocumentCodeBlocks( document: vscode.TextDocument, blocks: readonly PandocCodeBlock[]): DocumentBlock[];
+  parseDocumentCodeBlocks(document: vscode.TextDocument, blocks: readonly PandocCodeBlock[]): DocumentBlock[];
   parseDocumentReferences(document: vscode.TextDocument): NoWebReference[];
   findBlockLocation(document: vscode.TextDocument, block: DocumentBlock): CodeBlockLocation | null;
   // findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
@@ -21,10 +21,7 @@ export class LiterateParser implements ILiterateParser {
     this.logger = Logger.getInstance();
   }
 
-  public parseDocumentCodeBlocks(
-    document: vscode.TextDocument,
-    blocks: readonly PandocCodeBlock[]
-  ): DocumentBlock[] {
+  public parseDocumentCodeBlocks(document: vscode.TextDocument, blocks: readonly PandocCodeBlock[]): DocumentBlock[] {
     this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
       uri: document.uri.toString(),
       blockCount: blocks.length,
@@ -67,10 +64,7 @@ export class LiterateParser implements ILiterateParser {
 
       return documentBlocks;
     } catch (error) {
-      throw new DocumentParseError(
-        error instanceof Error ? error.message : String(error),
-        document.uri.toString()
-      );
+      throw new DocumentParseError(error instanceof Error ? error.message : String(error), document.uri.toString());
     }
   }
 
@@ -82,7 +76,7 @@ export class LiterateParser implements ILiterateParser {
       if (match.index === undefined || !match[1]) {
         continue;
       }
-      const fullReferenceMatch = match[0];  // includes reference markers
+      const fullReferenceMatch = match[0]; // includes reference markers
       const referenceIdentifier = match[1]; // just the identifier content
       const startPos = document.positionAt(match.index);
       const endPos = document.positionAt(match.index + fullReferenceMatch.length);
@@ -96,7 +90,6 @@ export class LiterateParser implements ILiterateParser {
     }
     return references;
   }
-
 
   private createBlockLocation(
     document: vscode.TextDocument,
@@ -117,10 +110,7 @@ export class LiterateParser implements ILiterateParser {
     };
   }
 
-  private findClosingFence(
-    document: vscode.TextDocument,
-    startLineNum: number
-  ): vscode.TextLine | null {
+  private findClosingFence(document: vscode.TextDocument, startLineNum: number): vscode.TextLine | null {
     for (let i = startLineNum + 1; i < document.lineCount; i++) {
       const line = document.lineAt(i);
       if (line.text.trim() === '```') {
@@ -138,10 +128,7 @@ export class LiterateParser implements ILiterateParser {
     return idMatch ? idMatch[1] === targetIdentifier : false;
   }
 
-  public findBlockLocation(
-    document: vscode.TextDocument,
-    block: PandocCodeBlock
-  ): CodeBlockLocation | null {
+  public findBlockLocation(document: vscode.TextDocument, block: PandocCodeBlock): CodeBlockLocation | null {
     this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
       identifier: block.identifier,
       idCount: block.idCount,

@@ -47,14 +47,10 @@ export const PATTERNS = {
   REFERENCE: new RegExp(`${BASIC_PATTERNS.REF_OPEN}${REF_CONTENT}${BASIC_PATTERNS.REF_CLOSE}`),
 
   /** Pattern for finding all references */
-  ALL_REFERENCES: new RegExp(
-    `${BASIC_PATTERNS.REF_OPEN}(${REF_CONTENT})${BASIC_PATTERNS.REF_CLOSE}`,
-    'g'
-  ),
+  ALL_REFERENCES: new RegExp(`${BASIC_PATTERNS.REF_OPEN}(${REF_CONTENT})${BASIC_PATTERNS.REF_CLOSE}`, 'g'),
 
   /** Pattern for reference to another code block */
-  BLOCK_REFERENCE: (ref: string) =>
-    new RegExp(`${BASIC_PATTERNS.REF_OPEN}${ref}${BASIC_PATTERNS.REF_CLOSE}`, 'g'),
+  BLOCK_REFERENCE: (ref: string) => new RegExp(`${BASIC_PATTERNS.REF_OPEN}${ref}${BASIC_PATTERNS.REF_CLOSE}`, 'g'),
 
   /** Pattern for identifier in attributes */
   BLOCK_IDENTIFIER: new RegExp(BASIC_PATTERNS.IDENTIFIER),

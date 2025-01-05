@@ -63,8 +63,6 @@ export class BlockSyntaxError extends EntangledError {
     public readonly blockIdentifier: string,
     public readonly lineNumber?: number
   ) {
-    super(
-      `Syntax error in block '${blockIdentifier}': ${message}${lineNumber ? ` at line ${lineNumber}` : ''}`
-    );
+    super(`Syntax error in block '${blockIdentifier}': ${message}${lineNumber ? ` at line ${lineNumber}` : ''}`);
   }
 }

@@ -46,10 +46,7 @@ export class ExtensionActivator {
 
       this.logger.debug('Providers registered successfully');
     } catch (error) {
-      this.logger.error(
-        'Failed to register providers',
-        error instanceof Error ? error : new Error(String(error))
-      );
+      this.logger.error('Failed to register providers', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -62,10 +59,7 @@ export class ExtensionActivator {
       this.commandHandler.register(context);
       this.logger.debug('Commands registered successfully');
     } catch (error) {
-      this.logger.error(
-        'Failed to register commands',
-        error instanceof Error ? error : new Error(String(error))
-      );
+      this.logger.error('Failed to register commands', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }

@@ -27,10 +27,7 @@ export class Settings {
       },
       performance: {
         ...defaultConfig.performance,
-        debounceInterval: config.get(
-          'performance.debounceInterval',
-          defaultConfig.performance.debounceInterval
-        ),
+        debounceInterval: config.get('performance.debounceInterval', defaultConfig.performance.debounceInterval),
       },
     };
   }
