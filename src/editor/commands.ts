@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../core/literate/manager';
 import { Logger } from '../utils/logger';
-import { EntangledDefinitionProvider, EntangledReferenceProvider } from './providers/navigation';
+import { EntangledNavigationProvider } from './providers/navigation';
 
 /** Registers and handles all VSCode commands for the extension */
 export class CommandHandler {
@@ -54,7 +54,7 @@ export class CommandHandlers {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
 
-    const definitions = await new EntangledDefinitionProvider().provideDefinition(
+    const definitions = await new EntangledNavigationProvider().provideDefinition(
       editor.document,
       editor.selection.active,
       new vscode.CancellationTokenSource().token
@@ -71,7 +71,7 @@ export class CommandHandlers {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
 
-    const references = await new EntangledReferenceProvider().provideReferences(
+    const references = await new EntangledNavigationProvider().provideReferences(
       editor.document,
       editor.selection.active,
       { includeDeclaration: true },

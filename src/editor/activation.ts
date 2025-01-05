@@ -2,12 +2,7 @@ import * as vscode from 'vscode';
 import { LiterateManager } from '../core/literate/manager';
 import { Logger } from '../utils/logger';
 import { LANGUAGE, SCHEMES } from '../utils/constants';
-import {
-  EntangledDefinitionProvider,
-  EntangledReferenceProvider,
-  EntangledHoverProvider,
-  EntangledDocumentSymbolProvider,
-} from './providers/navigation';
+import { EntangledNavigationProvider } from './providers/navigation';
 import { DecorationProvider } from './providers/decoration';
 import { CommandHandler } from './commands';
 
@@ -33,19 +28,19 @@ export class ExtensionActivator {
       context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledDefinitionProvider()
+          new EntangledNavigationProvider()
         ),
         vscode.languages.registerReferenceProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledReferenceProvider()
+          new EntangledNavigationProvider()
         ),
         vscode.languages.registerHoverProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledHoverProvider()
+          new EntangledNavigationProvider()
         ),
         vscode.languages.registerDocumentSymbolProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          new EntangledDocumentSymbolProvider()
+          new EntangledNavigationProvider()
         )
       );
 

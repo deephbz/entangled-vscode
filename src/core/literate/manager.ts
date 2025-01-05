@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { DocumentBlocks, DocumentBlock, CircularReference } from './entities';
+import {
+  DocumentBlocks,
+  DocumentBlock,
+  CircularReference,
+  DocumentBlocksByIdentifier,
+} from './entities';
 import { PandocCodeBlock } from '../pandoc/types';
 import { ILiterateParser, LiterateParser } from './parser';
 import {
@@ -13,7 +18,7 @@ import {
 import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
-  getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
+  getDocumentBlocks(uri: string): DocumentBlocksByIdentifier | undefined;
   parseDocument(document: vscode.TextDocument): Promise<void>;
   findDefinition(identifier: string): Promise<vscode.Location | null>;
   findReferences(identifier: string): Promise<vscode.Location[]>;
@@ -72,7 +77,10 @@ export class LiterateManager implements ILiterateManager {
           withIdentifiers: processedBlocks.filter((b) => b.identifier).length,
         });
 
-        this.addDocumentBlocks(uri, processedBlocks);
+        this.addDocumentBlocks(
+          uri,
+          processedBlocks.filter((b) => b.identifier)
+        );
       } catch (error) {
         throw new DocumentParseError(error instanceof Error ? error.message : String(error), uri);
       }
@@ -360,12 +368,12 @@ export class LiterateManager implements ILiterateManager {
     return content;
   }
 
-  getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined {
+  getDocumentBlocks(uri: string): DocumentBlocksByIdentifier | undefined {
     const docBlocks = this.documentBlocks[uri];
     if (!docBlocks) {
       return undefined;
     }
-    return Object.values(docBlocks).flat();
+    return docBlocks;
   }
 
   getDocumentsUris(): Iterable<string> {
