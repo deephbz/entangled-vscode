@@ -3,6 +3,7 @@ import { LiterateManager } from '../core/literate/manager';
 import { Logger } from '../utils/logger';
 import { LANGUAGE, SCHEMES } from '../utils/constants';
 import { EntangledNavigationProvider } from './providers/navigation';
+import { EntangledDocumentSymbolProvider } from './providers/document-symbol';
 import { DecorationProvider } from './providers/decoration';
 import { CommandHandler } from './commands';
 
@@ -12,6 +13,7 @@ export class ExtensionActivator {
   private logger: Logger;
   private decorationProvider: DecorationProvider;
   private navigationProvider: EntangledNavigationProvider;
+  private documentSymbolProvider: EntangledDocumentSymbolProvider;
   private commandHandler: CommandHandler;
 
   constructor() {
@@ -19,6 +21,7 @@ export class ExtensionActivator {
     this.logger = Logger.getInstance();
     this.decorationProvider = DecorationProvider.getInstance();
     this.navigationProvider = EntangledNavigationProvider.getInstance();
+    this.documentSymbolProvider = EntangledDocumentSymbolProvider.getInstance();
     this.commandHandler = new CommandHandler();
   }
 
@@ -50,7 +53,7 @@ export class ExtensionActivator {
         ),
         vscode.languages.registerDocumentSymbolProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
-          this.navigationProvider
+          this.documentSymbolProvider
         )
       );
 
