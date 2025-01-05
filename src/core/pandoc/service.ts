@@ -115,8 +115,7 @@ export class PandocService {
       const extractFromBlock = (block: PandocBlock): void => {
         if (block.t === 'CodeBlock') {
           const [attributes, content] = block.c as PandocCodeBlockData;
-          const [[rawId, classes, _]] = [attributes]; // key-value pairs are unused for now. It's a list of tuples
-          // this.logger.debug('PandocCodeBlock:: rawId, classes, keyVals = ', { rawId, classes, keyVals });
+          const [[rawId, classes, keyVals]] = [attributes]; 
 
           // check empty
           let identifier = rawId ? rawId : undefined;
@@ -125,11 +124,17 @@ export class PandocService {
               (match) => match[1]
             );
 
+            const language = classes?.[0]?.replace('.', '') || '';
+            const extraClasses = classes?.slice(1).map(c => c.replace('.', '')) || [];
+            const keyValuePairs = keyVals as [string, string][];
+
             blocks.push({
               identifier,
-              language: classes?.[0]?.replace('.', '') || '',
+              language,
               content,
               references,
+              keyValuePairs,
+              extraClasses,
             });
             this.logger.debug('PandocService::extractCodeBlocks::Found references', {
               identifier,

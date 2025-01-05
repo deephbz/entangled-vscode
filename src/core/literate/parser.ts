@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { PandocCodeBlock, DocumentBlock, CodeBlockLocation } from './entities';
+import { DocumentBlock, CodeBlockLocation } from './entities';
 import { DocumentParseError } from '../../utils/errors';
 import { PATTERNS } from '../../utils/constants';
 
@@ -8,13 +8,13 @@ import { PATTERNS } from '../../utils/constants';
 export interface ILiterateParser {
   parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: PandocCodeBlock[]
+    blocks: DocumentBlock[]
   ): DocumentBlock[];
   findBlockLocation(
     document: vscode.TextDocument,
-    block: PandocCodeBlock
+    block: DocumentBlock
   ): CodeBlockLocation | null;
-  findReferencesUsedInBlock(document: vscode.TextDocument, block: PandocCodeBlock): vscode.Range[];
+  findReferencesUsedInBlock(document: vscode.TextDocument, block: DocumentBlock): vscode.Range[];
 }
 
 /** Default implementation of the literate programming parser */
@@ -27,7 +27,7 @@ export class LiterateParser implements ILiterateParser {
 
   public parseDocumentAndDecorateBlocks(
     document: vscode.TextDocument,
-    blocks: PandocCodeBlock[]
+    blocks: DocumentBlock[]
   ): DocumentBlock[] {
     this.logger.debug('LiterateParser::parseDocument:: Starting parsing', {
       uri: document.uri.toString(),
@@ -73,7 +73,7 @@ export class LiterateParser implements ILiterateParser {
 
   public findBlockLocation(
     document: vscode.TextDocument,
-    block: PandocCodeBlock
+    block: DocumentBlock
   ): CodeBlockLocation | null {
     this.logger.debug('LiterateParser::findBlockLocation::Finding block location', {
       identifier: block.identifier,
@@ -146,7 +146,7 @@ export class LiterateParser implements ILiterateParser {
 
   public findReferencesUsedInBlock(
     document: vscode.TextDocument,
-    block: PandocCodeBlock
+    block: DocumentBlock
   ): vscode.Range[] {
     this.logger.debug('LiterateParser::findReferences::Finding references', {
       identifier: block.identifier,

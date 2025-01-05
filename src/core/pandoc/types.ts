@@ -3,6 +3,8 @@ export interface PandocCodeBlock {
   language: string;
   content: string;
   references: string[];
+  keyValuePairs: [string, string][];
+  extraClasses: string[];
 }
 
 export interface PandocASTNode {

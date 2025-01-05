@@ -109,6 +109,7 @@ export class LiterateManager implements ILiterateManager {
   }
 
   private async extractCodeBlocks(document: vscode.TextDocument): Promise<DocumentBlock[]> {
+    // Let Pandoc process codeblock starting line like ```{.class1 .class2 #identifier key1=value1 key2=value2} 
     const pandocService = PandocService.getInstance();
     try {
       const pandocBlocks = await pandocService.getCodeBlocksFromDocument(document);
@@ -124,6 +125,8 @@ export class LiterateManager implements ILiterateManager {
         dependencies: new Set(block.references),
         dependents: new Set(),
         referenceRanges: [],
+        keyValuePairs: block.keyValuePairs || [],
+        extraClasses: block.extraClasses || []
       }));
     } catch (error) {
       this.logger.error(

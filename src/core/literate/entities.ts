@@ -1,12 +1,5 @@
 import * as vscode from 'vscode';
-
-/** Represents a code block in a Pandoc document */
-export interface PandocCodeBlock {
-  identifier: string;
-  language: string;
-  content: string;
-  references: string[];
-}
+import { PandocCodeBlock } from '../pandoc/types';
 
 /** Location information for a code block within a document */
 export interface CodeBlockLocation {
