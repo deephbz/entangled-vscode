@@ -12,10 +12,16 @@ interface BlockReference {
 /** Provides navigation features for literate documents. */
 export class EntangledNavigationProvider
   implements
-    vscode.DocumentSymbolProvider,
+    // Return first codeblock definition:
     vscode.DefinitionProvider,
+    vscode.DeclarationProvider,
+    // Return all codeblock definitions:
     vscode.ImplementationProvider,
+    // Return all noweb references like <<identifier>>:
     vscode.ReferenceProvider,
+    // Symbols for outline view:
+    vscode.DocumentSymbolProvider,
+    // Mouse hover information:
     vscode.HoverProvider
 {
   private static instance: EntangledNavigationProvider;
@@ -118,31 +124,15 @@ export class EntangledNavigationProvider
     position: vscode.Position,
     token: vscode.CancellationToken
   ): Promise<vscode.Definition | null> {
-    if (token.isCancellationRequested) return null;
+    return this.findCodeblockDefsOfEntityUnderCursor(document, position, token, false);
+  }
 
-    const entity = this.findEntityAtPosition(document, position);
-    if (!entity) return null;
-    this.logger.debug('navigation::provideDefinition', {
-      position: `${position.line}:${position.character}`,
-      foundEntity: { type: entity.type, identifier: entity.entity.identifier },
-    });
-
-    // If we're on a reference, find the first matching block
-    if (entity.type === 'reference') {
-      const blocks = this.manager.getDocumentBlocks(document.uri.toString());
-      if (!blocks) return null;
-
-      for (const blockList of Object.values(blocks)) {
-        for (const block of blockList) {
-          if (block.identifier === entity.entity.identifier) {
-            return new vscode.Location(block.location.uri, block.location.id_pos);
-          }
-        }
-      }
-    }
-
-    // If we're on a block definition, return its position
-    return new vscode.Location(document.uri, entity.entity.location.id_pos);
+  async provideDeclaration(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken
+  ): Promise<vscode.Definition | null> {
+    return this.findCodeblockDefsOfEntityUnderCursor(document, position, token, false);
   }
 
   async provideImplementation(
@@ -150,31 +140,35 @@ export class EntangledNavigationProvider
     position: vscode.Position,
     token: vscode.CancellationToken
   ): Promise<vscode.Definition | null> {
+    return this.findCodeblockDefsOfEntityUnderCursor(document, position, token, true);
+  }
+
+  private async findCodeblockDefsOfEntityUnderCursor(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken,
+    allLocations: boolean
+  ): Promise<vscode.Definition | null> {
     if (token.isCancellationRequested) return null;
 
     const entity = this.findEntityAtPosition(document, position);
     if (!entity) return null;
-    this.logger.debug('navigation::provideImplementation', {
+    
+    const logContext = allLocations ? 'provideImplementation' : 'provideEntityLocation';
+    this.logger.debug(`navigation::${logContext}`, {
       position: `${position.line}:${position.character}`,
       foundEntity: { type: entity.type, identifier: entity.entity.identifier },
     });
 
-    const identifier = entity.type === 'reference' ? entity.entity.identifier : entity.entity.identifier;
+    const docEntities = this.manager.getDocumentEntities(document.uri.toString());
+    if (!docEntities) return null;
 
-    // Return all blocks with matching identifier
-    const locations: vscode.Location[] = [];
-    const blocks = this.manager.getDocumentBlocks(document.uri.toString());
-    if (!blocks) return null;
+    const blockList = docEntities.blocks[entity.entity.identifier];
+    if (!blockList || blockList.length === 0) return null;
 
-    for (const blockList of Object.values(blocks)) {
-      for (const block of blockList) {
-        if (block.identifier === identifier) {
-          locations.push(new vscode.Location(block.location.uri, block.location.id_pos));
-        }
-      }
-    }
-
-    return locations;
+    return allLocations
+      ? blockList.map(block => new vscode.Location(block.location.uri, block.location.id_pos))
+      : new vscode.Location(blockList[0].location.uri, blockList[0].location.id_pos);
   }
 
   async provideReferences(

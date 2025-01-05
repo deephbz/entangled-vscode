@@ -32,6 +32,14 @@ export class ExtensionActivator {
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
           this.navigationProvider
         ),
+        vscode.languages.registerDeclarationProvider(
+          { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
+          this.navigationProvider
+        ),
+        vscode.languages.registerImplementationProvider(
+          { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
+          this.navigationProvider
+        ),
         vscode.languages.registerReferenceProvider(
           { scheme: SCHEMES.FILE, language: LANGUAGE.ID },
           this.navigationProvider
