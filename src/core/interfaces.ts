@@ -4,8 +4,7 @@ import { PandocCodeBlock } from './pandoc/types';
 
 /** Interface for Pandoc service operations */
 export interface IPandocService {
-  convertToAST(document: vscode.TextDocument): Promise<unknown>;
-  extractCodeBlocks(ast: unknown): PandocCodeBlock[];
+  getCodeBlocksFromDocument(document: vscode.TextDocument): Promise<PandocCodeBlock[]>;
   clearCache(): void;
 }
 

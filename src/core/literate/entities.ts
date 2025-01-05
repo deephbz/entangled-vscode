@@ -25,12 +25,12 @@ export interface DocumentBlock extends PandocCodeBlock {
 }
 
 /** Maps block identifiers to their document blocks */
-export interface DocumentMap {
+export interface BlocksByIdentifier {
   [identifier: string]: DocumentBlock[];
 }
 
 /** Maps file URIs to their block identifiers */
-export interface FileMap {
+export interface IdentifiersByUri {
   [uri: string]: Set<string>; // URI -> Set of block identifiers
 }
 

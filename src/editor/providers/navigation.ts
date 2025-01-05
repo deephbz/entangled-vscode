@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
+// import { PATTERNS } from '../../utils/constants';
 
 /** Provides definition lookup for literate programming references */
 export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
@@ -17,6 +18,7 @@ export class EntangledDefinitionProvider implements vscode.DefinitionProvider {
     position: vscode.Position,
     _token: vscode.CancellationToken
   ): Promise<vscode.Definition | null> {
+    // const wordRange = document.getWordRangeAtPosition(position, PATTERNS.DEFINITION);
     // Get blocks for this document using read-only access
     const documentBlocks = this.documentManager.getDocumentBlocks(document.uri.toString());
     if (!documentBlocks) {
