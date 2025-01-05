@@ -1,24 +1,23 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { DocumentMap, FileMap, DocumentBlock, CircularReference, IReadOnlyDocumentMap } from './entities';
+import { DocumentMap, FileMap, DocumentBlock, CircularReference } from './entities';
 import { ILiterateParser, LiterateParser } from './parser';
 import { BlockNotFoundError, DocumentParseError, EntangledError, BlockSyntaxError, CircularReferenceError } from '../../utils/errors';
 import { PandocService } from '../pandoc/service'; // Assuming PandocService is imported from this location
 
 export interface ILiterateManager {
+    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
     parseDocument(document: vscode.TextDocument): Promise<void>;
     findDefinition(identifier: string): Promise<vscode.Location | null>;
     findReferences(identifier: string): Promise<vscode.Location[]>;
     findCircularReferences(): CircularReference[];
     getExpandedContent(identifier: string): string;
-    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined;
-    getReadOnlyDocuments(): IReadOnlyDocumentMap;
     clearCache(): void;
 }
 
 export class LiterateManager implements ILiterateManager {
     private static instance: LiterateManager;
-    protected documents: DocumentMap = {};
+    protected documentsByUri: DocumentMap = {};
     private fileMap: FileMap = {};
     private logger: Logger;
     private parser: ILiterateParser;
@@ -38,28 +37,28 @@ export class LiterateManager implements ILiterateManager {
     async parseDocument(document: vscode.TextDocument): Promise<void> {
         const uri = document.uri.toString();
         this.logger.debug('manager::parseDocument::Parsing', { uri });
-        
+
         try {
             const newDocBlocks = await this.extractCodeBlocks(document);
-            
+
             if (newDocBlocks.length === 0) {
                 this.logger.debug('manager::parseDocument::No code blocks found', { uri });
                 return;
             }
-            
+
             this.logger.debug('manager::parseDocument::Code blocks extracted', { count: newDocBlocks.length });
-            
+
             // Clear existing blocks for this document
             this.clearDocumentBlocks(uri);
-            
+
             // Process and add new blocks
             try {
                 const processedBlocks = this.parser.parseDocumentAndDecorateBlocks(document, newDocBlocks);
-                this.logger.debug('manager::parseDocument::Blocks processed', { 
+                this.logger.debug('manager::parseDocument::Blocks processed', {
                     totalBlocks: processedBlocks.length,
                     withIdentifiers: processedBlocks.filter(b => b.identifier).length
                 });
-                
+
                 this.addDocumentBlocks(uri, processedBlocks);
             } catch (error) {
                 throw new DocumentParseError(
@@ -70,11 +69,11 @@ export class LiterateManager implements ILiterateManager {
 
             // Update dependencies
             this.updateDependencies();
-            
+
             // Check for circular references
             const circular = this.findCircularReferences();
             if (circular.length > 0) {
-                this.logger.warn('Circular references detected', { 
+                this.logger.warn('Circular references detected', {
                     count: circular.length,
                     references: circular.map(ref => ref.path)
                 });
@@ -111,7 +110,7 @@ export class LiterateManager implements ILiterateManager {
         try {
             const ast = await pandocService.convertToAST(document);
             const pandocBlocks = pandocService.extractCodeBlocks(ast);
-            
+
             // Convert PandocCodeBlock to DocumentBlock
             return pandocBlocks.map(block => ({
                 ...block,
@@ -134,11 +133,11 @@ export class LiterateManager implements ILiterateManager {
         if (this.fileMap[uri]) {
             this.logger.debug('manager::clearDocumentBlocks::Clearing existing blocks', { uri });
             for (const identifier of this.fileMap[uri]) {
-                this.documents[identifier] = this.documents[identifier]?.filter(
+                this.documentsByUri[identifier] = this.documentsByUri[identifier]?.filter(
                     block => block.location.uri.toString() !== uri
                 ) || [];
-                if (this.documents[identifier].length === 0) {
-                    delete this.documents[identifier];
+                if (this.documentsByUri[identifier].length === 0) {
+                    delete this.documentsByUri[identifier];
                 }
             }
         }
@@ -147,29 +146,29 @@ export class LiterateManager implements ILiterateManager {
 
     private addDocumentBlocks(uri: string, blocks: DocumentBlock[]): void {
         for (const block of blocks) {
-            if (!this.documents[block.identifier]) {
-                this.documents[block.identifier] = [];
+            if (!this.documentsByUri[block.identifier]) {
+                this.documentsByUri[block.identifier] = [];
             }
-            this.documents[block.identifier].push(block);
+            this.documentsByUri[block.identifier].push(block);
             this.fileMap[uri].add(block.identifier);
         }
     }
 
     private updateDependencies(): void {
         this.logger.debug('manager::updateDependencies::Updating');
-        
+
         // Clear existing dependents
-        for (const blocks of Object.values(this.documents)) {
+        for (const blocks of Object.values(this.documentsByUri)) {
             for (const block of blocks) {
                 block.dependents.clear();
             }
         }
 
         // Update dependents based on dependencies
-        for (const blocks of Object.values(this.documents)) {
+        for (const blocks of Object.values(this.documentsByUri)) {
             for (const block of blocks) {
                 for (const dep of block.dependencies) {
-                    const depBlocks = this.documents[dep];
+                    const depBlocks = this.documentsByUri[dep];
                     if (depBlocks) {
                         for (const depBlock of depBlocks) {
                             depBlock.dependents.add(block.identifier);
@@ -182,8 +181,8 @@ export class LiterateManager implements ILiterateManager {
 
     findDefinition(identifier: string): Promise<vscode.Location | null> {
         this.logger.debug('manager::findDefinition::Finding', { identifier });
-        
-        const locations = Object.values(this.documents)
+
+        const locations = Object.values(this.documentsByUri)
             .flatMap(blocks => blocks)
             .filter(block => block.identifier === identifier)
             .map(block => new vscode.Location(block.location.uri, block.location.range));
@@ -192,8 +191,8 @@ export class LiterateManager implements ILiterateManager {
             this.logger.debug('manager::findDefinition::No definitions found', { identifier });
             return Promise.resolve(null);
         } else {
-            this.logger.debug('manager::findDefinition::Definitions found', { 
-                identifier, 
+            this.logger.debug('manager::findDefinition::Definitions found', {
+                identifier,
                 count: locations.length,
                 locations: locations.map(loc => loc.uri.toString())
             });
@@ -202,7 +201,7 @@ export class LiterateManager implements ILiterateManager {
     }
 
     findReferences(identifier: string): Promise<vscode.Location[]> {
-        const locations = Object.values(this.documents)
+        const locations = Object.values(this.documentsByUri)
             .flatMap(blocks => blocks)
             .filter(block => block.dependencies.has(identifier))
             .map(block => new vscode.Location(block.location.uri, block.location.range));
@@ -210,8 +209,8 @@ export class LiterateManager implements ILiterateManager {
         if (locations.length === 0) {
             this.logger.debug('manager::findReferences::No references found', { identifier });
         } else {
-            this.logger.debug('manager::findReferences::References found', { 
-                identifier, 
+            this.logger.debug('manager::findReferences::References found', {
+                identifier,
                 count: locations.length,
                 locations: locations.map(loc => loc.uri.toString())
             });
@@ -247,7 +246,7 @@ export class LiterateManager implements ILiterateManager {
             recursionStack.add(identifier);
             path.push(identifier);
 
-            const blocks = this.documents[identifier];
+            const blocks = this.documentsByUri[identifier];
             if (blocks) {
                 for (const block of blocks) {
                     for (const dep of block.dependencies) {
@@ -260,7 +259,7 @@ export class LiterateManager implements ILiterateManager {
             path.pop();
         };
 
-        for (const identifier of Object.keys(this.documents)) {
+        for (const identifier of Object.keys(this.documentsByUri)) {
             if (!visited.has(identifier)) {
                 dfs(identifier);
             }
@@ -271,8 +270,8 @@ export class LiterateManager implements ILiterateManager {
 
     getExpandedContent(identifier: string): string {
         this.logger.debug('manager::getExpandedContent::Getting expanded content', { identifier });
-        
-        const blocks = this.documents[identifier];
+
+        const blocks = this.documentsByUri[identifier];
         if (!blocks?.length) {
             throw new BlockNotFoundError(identifier);
         }
@@ -298,7 +297,7 @@ export class LiterateManager implements ILiterateManager {
             return `<<circular reference to ${id}>>`;
         }
 
-        const blocks = this.documents[id];
+        const blocks = this.documentsByUri[id];
         if (!blocks?.length) {
             this.logger.warn('Block not found during expansion', { identifier: id });
             return `<<${id} not found>>`;
@@ -306,7 +305,7 @@ export class LiterateManager implements ILiterateManager {
 
         visited.add(id);
         let content = '';
-        
+
         for (const block of blocks) {
             content += block.content.replace(/<<([^>]+)>>/g, (_, ref) => {
                 return this.expand(ref, new Set(visited));
@@ -318,22 +317,13 @@ export class LiterateManager implements ILiterateManager {
         return content;
     }
 
-    /**
-     * Get read-only access to all document blocks
-     */
-    getReadOnlyDocuments(): IReadOnlyDocumentMap {
-        return this.documents;
-    }
+    /** Get read-only access to blocks for a specific document */
+    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined { return this.documentsByUri[uri]; }
 
-    /**
-     * Get read-only access to blocks for a specific document
-     */
-    getDocumentBlocks(uri: string): ReadonlyArray<DocumentBlock> | undefined {
-        return this.documents[uri];
-    }
+    getDocumentsUris(): Iterable<string> { return Object.keys(this.documentsByUri); }
 
     clearCache(): void {
-        this.documents = {};
+        this.documentsByUri = {};
         this.fileMap = {};
         this.logger.info('Cache cleared');
     }

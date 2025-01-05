@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from '../../core/literate/manager';
 import { Logger } from '../../utils/logger';
-import { PATTERNS } from '../../utils/constants';
 
 /**
  * Provides definition lookup for literate programming references
@@ -168,42 +167,42 @@ export class EntangledHoverProvider implements vscode.HoverProvider {
  */
 export class EntangledDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
     private logger = Logger.getInstance();
+    private documentManager: LiterateManager;
+
+    constructor() {
+        this.documentManager = LiterateManager.getInstance();
+    }
 
     async provideDocumentSymbols(
         document: vscode.TextDocument,
         _token: vscode.CancellationToken
     ): Promise<vscode.DocumentSymbol[]> {
-        const text = document.getText();
+        const uris = this.documentManager.getDocumentsUris();
+        const documentBlocks = this.documentManager.getDocumentBlocks(document.uri.toString());
+        this.logger.debug('SymbolProvider: Providing document symbols for document', {
+            existingUris: uris,
+            uri: document.uri.toString(),
+            numBlocks: documentBlocks?.length
+        });
+        if (!documentBlocks) {
+            return [];
+        }
+
         const symbols: vscode.DocumentSymbol[] = [];
-        const pattern = PATTERNS.CODE_BLOCK;
         
-        let match;
-        while ((match = pattern.exec(text)) !== null) {
-            const startPos = document.positionAt(match.index);
-            const attributes = match[1];
-            const idMatch = attributes.match(PATTERNS.BLOCK_IDENTIFIER);
+        for (const block of documentBlocks) {
+            if (!block.identifier) continue;
+
+            const symbol = new vscode.DocumentSymbol(
+                block.identifier,
+                'Code Block',
+                vscode.SymbolKind.String,
+                block.location.range,
+                block.location.range
+            );
             
-            if (idMatch) {
-                const identifier = idMatch[1];
-                
-                // Find the end of the code block using the pre-computed fence pattern
-                const blockEnd = text.indexOf(`\n${PATTERNS.BASIC.FENCE}`, match.index + match[0].length);
-                if (blockEnd === -1) continue;
-                
-                const endPos = document.positionAt(blockEnd + PATTERNS.BASIC.FENCE.length + 1);
-                const range = new vscode.Range(startPos, endPos);
-                
-                const symbol = new vscode.DocumentSymbol(
-                    identifier,
-                    'Code Block',
-                    vscode.SymbolKind.String,
-                    range,
-                    range
-                );
-                
-                symbols.push(symbol);
-                this.logger.debug('SymbolProvider: Found document symbol', { identifier });
-            }
+            symbols.push(symbol);
+            this.logger.debug('SymbolProvider: Found document symbol', { identifier: block.identifier });
         }
         
         return symbols;
