@@ -1,159 +1,164 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
-import { LANGUAGE, PATTERNS } from '../../utils/constants';
-import { defaultDecorationConfig } from '../../config/decoration';
+import { LANGUAGE } from '../../utils/constants';
+import { defaultDecorationConfig, DecorationConfig } from '../../config/decoration';
+import { DocumentEntities, DocumentBlock, NoWebReference } from '../../core/literate/entities';
+import { LiterateManager } from '../../core/literate/manager';
 
-/** Manages decorations for literate programming elements in the editor */
-export class DecorationProvider {
-  private static instance: DecorationProvider;
-  private logger: Logger;
-  private definitionDecorationType: vscode.TextEditorDecorationType;
-  private referenceDecorationType: vscode.TextEditorDecorationType;
+type DecorationTypes = {
+  [K in keyof DecorationConfig]: vscode.TextEditorDecorationType;
+};
+
+/** Provides decorations for literate programming elements in the editor */
+export class EntangledDecorationProvider implements vscode.Disposable {
+  private static instance: EntangledDecorationProvider;
+  private readonly logger = Logger.getInstance();
+  private readonly manager = LiterateManager.getInstance();
+  private readonly decorationTypes: DecorationTypes;
+
   private activeEditor?: vscode.TextEditor;
-  private timeout?: NodeJS.Timeout;
+  private updateTimeout?: NodeJS.Timeout;
 
   private constructor() {
-    this.logger = Logger.getInstance();
-
-    this.definitionDecorationType = vscode.window.createTextEditorDecorationType(
-      defaultDecorationConfig.definitionStyle
-    );
-
-    this.referenceDecorationType = vscode.window.createTextEditorDecorationType(
-      defaultDecorationConfig.outBlockReferenceStyle
+    // Initialize all decoration types from config
+    this.decorationTypes = Object.entries(defaultDecorationConfig).reduce(
+      (types, [key, style]) => ({
+        ...types,
+        [key]: vscode.window.createTextEditorDecorationType(style),
+      }),
+      {} as DecorationTypes
     );
 
     this.activeEditor = vscode.window.activeTextEditor;
   }
 
-  public static getInstance(): DecorationProvider {
-    if (!DecorationProvider.instance) {
-      DecorationProvider.instance = new DecorationProvider();
+  public static getInstance(): EntangledDecorationProvider {
+    if (!EntangledDecorationProvider.instance) {
+      EntangledDecorationProvider.instance = new EntangledDecorationProvider();
     }
-    return DecorationProvider.instance;
+    return EntangledDecorationProvider.instance;
   }
 
   public activate(context: vscode.ExtensionContext): void {
-    this.logger.debug('DecorationProvider::Activating decoration provider');
+    this.logger.debug('decoration::activate');
+
+    context.subscriptions.push(
+      vscode.window.onDidChangeActiveTextEditor(this.handleEditorChange.bind(this)),
+      vscode.workspace.onDidChangeTextDocument(this.handleDocumentChange.bind(this)),
+      this // Register self as disposable
+    );
 
     if (this.activeEditor) {
       this.triggerUpdateDecorations();
     }
 
-    // Register event handlers
-    context.subscriptions.push(
-      vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor?.document.uri.scheme !== 'file') {
-          return;
-        }
-
-        this.logger.debug('Decoration provider::Active editor changed', {
-          uri: editor?.document.uri.toString(),
-          languageId: editor?.document.languageId,
-        });
-
-        this.activeEditor = editor;
-        if (editor) {
-          this.triggerUpdateDecorations();
-        }
-      }),
-
-      vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.uri.scheme !== 'file') {
-          return;
-        }
-
-        if (this.activeEditor && event.document === this.activeEditor.document) {
-          this.logger.debug('Decoration provider::Document changed', {
-            uri: event.document.uri.toString(),
-            changes: event.contentChanges.length,
-          });
-          this.triggerUpdateDecorations();
-        }
-      })
-    );
-
-    this.logger.debug('Decoration provider::Decoration provider activated');
+    this.logger.debug('decoration::activated');
   }
 
-  public triggerUpdateDecorations(): void {
-    if (this.timeout) {
-      clearTimeout(this.timeout);
-      this.timeout = undefined;
+  private handleEditorChange = (editor?: vscode.TextEditor): void => {
+    if (!editor || editor.document.uri.scheme !== 'file') {
+      return;
     }
-    this.timeout = setTimeout(() => this.updateDecorations(), 500);
+
+    this.logger.debug('decoration::editor-changed', {
+      uri: editor.document.uri.toString(),
+      languageId: editor.document.languageId,
+    });
+
+    this.activeEditor = editor;
+    this.triggerUpdateDecorations();
+  };
+
+  private handleDocumentChange = (event: vscode.TextDocumentChangeEvent): void => {
+    if (event.document.uri.scheme !== 'file' || !this.activeEditor || event.document !== this.activeEditor.document) {
+      return;
+    }
+
+    this.logger.debug('decoration::document-changed', {
+      uri: event.document.uri.toString(),
+      changes: event.contentChanges.length,
+    });
+
+    this.triggerUpdateDecorations();
+  };
+
+  private triggerUpdateDecorations(): void {
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout);
+    }
+    this.updateTimeout = setTimeout(() => this.updateDecorations(), 500);
   }
 
   private async updateDecorations(): Promise<void> {
     if (!this.activeEditor || this.activeEditor.document.languageId !== LANGUAGE.ID) {
-      this.logger.debug('Decoration provider::Skipping decoration update for non-markdown document', {
+      this.logger.debug('decoration::skip-non-markdown', {
         uri: this.activeEditor?.document.uri.toString(),
         languageId: this.activeEditor?.document.languageId,
       });
       return;
     }
 
-    this.logger.debug('Decoration provider::Updating decorations', {
-      uri: this.activeEditor.document.uri.toString(),
-    });
+    const documentUri = this.activeEditor.document.uri.toString();
+
+    this.logger.debug('decoration::update', { uri: documentUri });
 
     try {
-      // Clear existing decorations
-      this.activeEditor.setDecorations(this.definitionDecorationType, []);
-      this.activeEditor.setDecorations(this.referenceDecorationType, []);
-
-      const text = this.activeEditor.document.getText();
-
-      // Use predefined patterns from constants
-      const definitionMatches = Array.from(text.matchAll(PATTERNS.CODE_BLOCK));
-      const referenceMatches = Array.from(text.matchAll(PATTERNS.ALL_REFERENCES));
-
-      if (!definitionMatches.length && !referenceMatches.length) {
-        this.logger.debug('Decoration provider::No matches found in document', {
-          uri: this.activeEditor.document.uri.toString(),
-        });
+      const entities = this.manager.getDocumentEntities(documentUri);
+      if (!entities) {
+        return;
       }
 
-      const definitionRanges: vscode.Range[] = [];
-      const referenceRanges: vscode.Range[] = [];
+      const decorations = this.createDecorations(entities);
 
-      // Process definitions
-      for (const match of definitionMatches) {
-        const startPos = this.activeEditor.document.positionAt(match.index!);
-        const endPos = this.activeEditor.document.positionAt(match.index! + match[0].length);
-        definitionRanges.push(new vscode.Range(startPos, endPos));
-      }
+      // Apply all decoration types
+      Object.entries(this.decorationTypes).forEach(([key, decorationType]) => {
+        const ranges = decorations[key as keyof DecorationTypes] || [];
+        this.activeEditor!.setDecorations(decorationType, ranges);
+      });
 
-      // Process references
-      for (const match of referenceMatches) {
-        const startPos = this.activeEditor.document.positionAt(match.index!);
-        const endPos = this.activeEditor.document.positionAt(match.index! + match[0].length);
-        referenceRanges.push(new vscode.Range(startPos, endPos));
-      }
-
-      // Apply decorations
-      this.activeEditor.setDecorations(this.definitionDecorationType, definitionRanges);
-      this.activeEditor.setDecorations(this.referenceDecorationType, referenceRanges);
-
-      this.logger.debug('Decoration provider::Decorations updated', {
-        uri: this.activeEditor.document.uri.toString(),
-        definitions: definitionRanges.length,
-        references: referenceRanges.length,
+      this.logger.debug('decoration::updated', {
+        uri: documentUri,
+        decorationCounts: Object.fromEntries(Object.entries(decorations).map(([key, ranges]) => [key, ranges.length])),
       });
     } catch (error) {
-      this.logger.error('Error updating decorations', error instanceof Error ? error : new Error(String(error)), {
-        uri: this.activeEditor.document.uri.toString(),
+      this.logger.error('decoration::update-error', error instanceof Error ? error : new Error(String(error)), {
+        uri: documentUri,
       });
     }
   }
 
+  private createDecorations(entities: DocumentEntities): Partial<Record<keyof DecorationTypes, vscode.Range[]>> {
+    const decorations: Partial<Record<keyof DecorationTypes, vscode.Range[]>> = {
+      definitionStyle: [],
+      continuationStyle: [],
+      inBlockReferenceStyle: [],
+      outBlockReferenceStyle: [],
+    };
+
+    // Process code blocks
+    Object.values(entities.blocks)
+      .flat()
+      .forEach((block: DocumentBlock) => {
+        decorations.definitionStyle!.push(block.location.range);
+      });
+
+    // Process references
+    Object.values(entities.references)
+      .flat()
+      .forEach((ref: NoWebReference) => {
+        decorations.outBlockReferenceStyle!.push(ref.location.id_pos);
+      });
+
+    return decorations;
+  }
+
   public dispose(): void {
-    this.logger.debug('Decoration provider::Disposing decoration provider');
-    this.definitionDecorationType.dispose();
-    this.referenceDecorationType.dispose();
-    if (this.timeout) {
-      clearTimeout(this.timeout);
-      this.timeout = undefined;
+    this.logger.debug('decoration::dispose');
+    Object.values(this.decorationTypes).forEach((type) => type.dispose());
+
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout);
+      this.updateTimeout = undefined;
     }
   }
 }

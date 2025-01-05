@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import { LiterateManager } from './core/literate/manager';
-// import { EntangledDefinitionProvider, EntangledReferenceProvider, EntangledHoverProvider, EntangledDocumentSymbolProvider } from './editor/providers/navigation';
-import { DecorationProvider } from './editor/providers/decoration';
 import { ExtensionActivator } from './editor/activation';
 import { Logger } from './utils/logger';
 import { PandocError, DocumentParseError } from './utils/errors';
@@ -42,15 +40,7 @@ const handleDocument = async (document: vscode.TextDocument): Promise<void> => {
 
     // Parse document
     await LiterateManager.getInstance().parseDocument(document);
-
-    // Update decorations
-    const editor = vscode.window.visibleTextEditors.find((e) => e.document === document);
-    if (editor) {
-      DecorationProvider.getInstance().triggerUpdateDecorations();
-      logger.debug('handleDocument::Decorations updated');
-    }
-
-    logger.debug('handleDocument:: processed successfully');
+    logger.debug('handleDocument::processed successfully');
   } catch (error) {
     if (error instanceof PandocError) {
       logger.error('Pandoc processing failed', error, {

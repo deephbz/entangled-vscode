@@ -4,14 +4,14 @@ import { Logger } from '../utils/logger';
 import { LANGUAGE, SCHEMES } from '../utils/constants';
 import { EntangledNavigationProvider } from './providers/navigation';
 import { EntangledDocumentSymbolProvider } from './providers/document-symbol';
-import { DecorationProvider } from './providers/decoration';
+import { EntangledDecorationProvider } from './providers/decoration';
 import { CommandHandler } from './commands';
 
 /** Handles the activation of the extension in VSCode */
 export class ExtensionActivator {
   private documentManager: LiterateManager;
   private logger: Logger;
-  private decorationProvider: DecorationProvider;
+  private decorationProvider: EntangledDecorationProvider;
   private navigationProvider: EntangledNavigationProvider;
   private documentSymbolProvider: EntangledDocumentSymbolProvider;
   private commandHandler: CommandHandler;
@@ -19,7 +19,7 @@ export class ExtensionActivator {
   constructor() {
     this.documentManager = LiterateManager.getInstance();
     this.logger = Logger.getInstance();
-    this.decorationProvider = DecorationProvider.getInstance();
+    this.decorationProvider = EntangledDecorationProvider.getInstance();
     this.navigationProvider = EntangledNavigationProvider.getInstance();
     this.documentSymbolProvider = EntangledDocumentSymbolProvider.getInstance();
     this.commandHandler = new CommandHandler();
